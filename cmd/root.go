@@ -1,5 +1,6 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+Package cmd
+Copyright © 2026 Moses Sukumaran moses@solframe.in
 */
 package cmd
 
