@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/spf13/cobra"
 )
@@ -13,10 +14,17 @@ import (
 // initCmd represents the init command
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Create a new story",
-	Long:  `Generate a new story on the basis of your information`,
+	Short: "Create a new story in the current folder",
+	Long:  `Generate a new story on the basis of your information in the current folder`,
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("init called")
+		workType := args[0]
+		switch workType {
+		case "short":
+			fmt.Println("Creating short story")
+		default:
+			log.Fatal("Incorrect argument, refer to help for valid types")
+		}
 	},
 }
 
@@ -32,4 +40,5 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// initCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	initCmd.Flags().StringP("name", "n", "", "Title of the Work")
 }
