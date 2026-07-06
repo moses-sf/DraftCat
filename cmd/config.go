@@ -23,6 +23,14 @@ type AuthorConfig struct {
 	Phone   string
 }
 
+func (a *AuthorConfig) Print() {
+	fmt.Println("Author Details -")
+	fmt.Printf("Name: %s\n", a.Name)
+	fmt.Printf("Email: %s\n", a.Email)
+	fmt.Printf("Address: %s\n", a.Address)
+	fmt.Printf("Phone Number: %s\n\n\n", a.Phone)
+}
+
 func (a *AuthorConfig) FillEmpty(oldconfig AuthorConfig) {
 	if a.Name == "" {
 		a.Name = oldconfig.Name
