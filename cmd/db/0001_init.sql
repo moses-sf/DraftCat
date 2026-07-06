@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS chapters (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   path TEXT NOT NULL,
+  position INTEGER NOT NULL,
   word_count INTEGER NOT NULL DEFAULT 0
 );
 
@@ -12,7 +13,7 @@ CREATE TABLE IF NOT EXISTS scenes (
   chapter_id INTEGER,
   name TEXT NOT NULL,
   path TEXT NOT NULL,
-  chapter INTEGER,
+  position INTEGER NOT NULL,
   word_count INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (chapter_id) REFERENCES chapters(id)
 );

@@ -24,12 +24,6 @@ import (
 //go:embed db/0001_init.sql
 var schemaFS embed.FS
 
-type SceneMetaData struct {
-	Name     string
-	Position int
-	Chapter  int
-}
-
 type StoryType string
 
 const (
