@@ -11,6 +11,7 @@ import (
 
 type ChapterCreate struct {
 	Name     string
+	ParentID sql.NullInt64
 	Path     string
 	Position int
 }
@@ -23,8 +24,8 @@ type SceneCreate struct {
 }
 
 func AddChapter(db *sql.DB, chapter ChapterCreate) (int, error) {
-	res, err := db.Exec(`INSERT INTO chapters (name, path, position) 
-		VALUES (?, ?, ?)`, chapter.Name, chapter.Path, chapter.Position)
+	res, err := db.Exec(`INSERT INTO chapters (name, path, position, parent_id) 
+		VALUES (?, ?, ?, ?)`, chapter.Name, chapter.Path, chapter.Position, chapter.ParentID)
 	if err != nil {
 		return 0, err
 	}

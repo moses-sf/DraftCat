@@ -11,9 +11,9 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func GetMaxChapterPosition(db *sql.DB) (int, error) {
+func GetMaxChapterPosition(db *sql.DB, parentID sql.NullInt64) (int, error) {
 	var maxPosition int
-	res, err := db.Query(`SELECT COALESCE(MAX(position), 0) FROM chapters`)
+	res, err := db.Query(`SELECT COALESCE(MAX(position), 0) FROM chapters WHERE parent_id=?`, parentID)
 	if err != nil {
 		return 0, err
 	}

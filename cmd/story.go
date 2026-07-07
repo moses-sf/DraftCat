@@ -16,12 +16,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func FindStoryToml() (string, error) {
+func FindToml(tomlName string) (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
-	_, err = os.Stat(filepath.Join(cwd, ".story.toml"))
+	_, err = os.Stat(filepath.Join(cwd, tomlName))
 	if err != nil {
 		if os.IsNotExist(err) {
 			fmt.Println("Attempting to find local file")
@@ -41,6 +41,7 @@ type SceneMetaData struct {
 
 type ChapterMetaData struct {
 	ID         int
+	ParentID   sql.NullInt64
 	PathToRoot string
 	Position   int
 	Scenes     []SceneMetaData
@@ -59,7 +60,7 @@ func CreateScene(path string) error {
 	return nil
 }
 
-func CreateChapter(db *sql.DB, path string, name string) error {
+func CreateChapter(db *sql.DB, path, name, root string, parentID sql.NullInt64) error {
 	info, err := os.Stat(path)
 
 	if err == nil {
@@ -74,12 +75,13 @@ func CreateChapter(db *sql.DB, path string, name string) error {
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		return fmt.Errorf("create folder %s: %w", path, err)
 	}
-	newPosition, err := databasehandler.GetMaxChapterPosition(db)
+	newPosition, err := databasehandler.GetMaxChapterPosition(db, parentID)
 	if err != nil {
 		return err
 	}
 	chapID, err := databasehandler.AddChapter(db, databasehandler.ChapterCreate{
 		Name:     name,
+		ParentID: parentID,
 		Path:     path,
 		Position: newPosition + 1,
 	})
@@ -108,8 +110,11 @@ func CreateChapter(db *sql.DB, path string, name string) error {
 		Position: 1,
 	})
 	chapter := ChapterMetaData{
-		ID:         chapID,
-		PathToRoot: "..",
+		ID: chapID,
+		ParentID: sql.NullInt64{
+			Valid: false,
+		},
+		PathToRoot: root,
 		Position:   newPosition + 1,
 		Scenes:     scene,
 	}
@@ -124,9 +129,9 @@ func CreateChapter(db *sql.DB, path string, name string) error {
 	return err
 }
 
-func ChapterExists(db *sql.DB, chapterName string) (bool, error) {
+func ChapterExists(db *sql.DB, chapterName string, parentID sql.NullInt64) (bool, error) {
 	var chapters []string
-	res, err := db.Query(`SELECT name FROM chapters WHERE name=?`, chapterName)
+	res, err := db.Query(`SELECT name FROM chapters WHERE name=? AND parent_id=?`, chapterName, parentID)
 	defer func(r *sql.Rows) {
 		err = r.Close()
 		if err != nil {
@@ -178,10 +183,15 @@ var addFolderCmd = &cobra.Command{
 	-b for initialising without basic.md file`,
 	Run: func(cmd *cobra.Command, args []string) {
 		var chapterName string
-		cwd, err := FindStoryToml()
+		parent := false
+		root := ".."
+		cwd, err := FindToml(".story.toml")
 		if err != nil {
-			fmt.Println("Error retrieving root directory. Does .story.toml exist in root?")
-			return
+			cwd, err = FindToml(".chapter.toml")
+			if err != nil {
+				fmt.Println("Error retrieving root directory. Does .story.toml or .chapter.toml exist in this folder?")
+			}
+			parent = true
 		}
 
 		if cmd.Flags().Changed("name") {
@@ -194,7 +204,24 @@ var addFolderCmd = &cobra.Command{
 			fmt.Print("No name provided, creating folder called Chapter 1\n")
 			chapterName = "Chapter 1"
 		}
-		db, err := sql.Open("sqlite", filepath.Join(cwd, ".story.db"))
+		parentID := sql.NullInt64{
+			Valid: false,
+		}
+		dbPath := filepath.Join(cwd, ".story.db")
+		if parent {
+			chapter, err := LoadChapterToml(cwd)
+			if err != nil {
+				fmt.Println("Couldn't load folder data")
+				return
+			}
+			root = "../" + chapter.PathToRoot
+			parentID = sql.NullInt64{
+				Valid: true,
+				Int64: int64(chapter.ID),
+			}
+			dbPath = filepath.Join(cwd, chapter.PathToRoot, ".story.db")
+		}
+		db, err := sql.Open("sqlite", dbPath)
 		if err != nil {
 			fmt.Println("Could not access story DB, please run drafcat story repair")
 			return
@@ -205,20 +232,20 @@ var addFolderCmd = &cobra.Command{
 				fmt.Println(err)
 			}
 		}(db)
-		nameExists, err := ChapterExists(db, chapterName)
+		nameExists, err := ChapterExists(db, chapterName, parentID)
 		if err != nil {
 			fmt.Println("error retrieving data")
 			return
 		}
 		for nameExists {
 			chapterName = fmt.Sprintf("%s copy", chapterName)
-			nameExists, err = ChapterExists(db, chapterName)
+			nameExists, err = ChapterExists(db, chapterName, parentID)
 			if err != nil {
 				fmt.Println("error retrieving data")
 				return
 			}
 		}
-		err = CreateChapter(db, filepath.Join(cwd, chapterName), chapterName)
+		err = CreateChapter(db, filepath.Join(cwd, chapterName), chapterName, root, parentID)
 		if err != nil {
 			fmt.Println("Chapter Creation Failed", err)
 			return
