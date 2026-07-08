@@ -296,7 +296,10 @@ var addSceneCmd = &cobra.Command{
 				return
 			}
 		}
-		maxPosition := 0
+		maxPosition, err := databasehandler.GetMaxScenePosition(db, chapter.ID)
+		if err != nil {
+			fmt.Println("Error in retrieving max position")
+		}
 		if cmd.Flags().Changed("position") {
 			position, err = cmd.Flags().GetInt("position")
 			if err != nil {
@@ -304,10 +307,6 @@ var addSceneCmd = &cobra.Command{
 				return
 			}
 		} else {
-			maxPosition, err = databasehandler.GetMaxScenePosition(db, chapter.ID)
-			if err != nil {
-				fmt.Println("Error in retrieving max position")
-			}
 			position = maxPosition + 1
 		}
 
@@ -323,9 +322,8 @@ var addSceneCmd = &cobra.Command{
 			Path:      scenePath,
 			Position:  position,
 		}
-
 		sceneID := 0
-		if maxPosition > position {
+		if maxPosition >= position {
 			sceneID, err = databasehandler.InsertSceneAtPosition(db, scene)
 		} else {
 			sceneID, err = databasehandler.AddScene(db, scene)
@@ -407,10 +405,70 @@ var moveFolderCmd = &cobra.Command{
 	},
 }
 
+var showCmd = &cobra.Command{
+	Use:   "show",
+	Short: "display the story structure",
+	Long:  "display the story structure, use j for json output",
+	Run: func(cmd *cobra.Command, args []string) {
+		_, err := utilities.IsDraftcatProject()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		root, err := utilities.GetRelativeRootPath()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		json, err := cmd.Flags().GetBool("json")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		dbPath := filepath.Join(root, ".story.db")
+		db, err := sql.Open("sqlite", dbPath)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer func(d *sql.DB) {
+			err = db.Close()
+			if err != nil {
+				fmt.Println(err)
+			}
+		}(db)
+		chapters, err := databasehandler.GetChapterNodes(db)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Println(chapters)
+		storyConfig := &utilities.StoryConfig{}
+		err = storyConfig.LoadConfig(root)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		story := &utilities.StoryStructure{
+			Name: storyConfig.MetaData.Name,
+			Root: root,
+			Type: string(storyConfig.MetaData.Type),
+		}
+		fmt.Println("Displaying story structure")
+		if json {
+			story.JSONRender()
+		} else {
+			story.Render()
+		}
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(storyCmd)
 	storyCmd.AddCommand(addCmd)
 	storyCmd.AddCommand(moveCmd)
+	storyCmd.AddCommand(showCmd)
 	addCmd.AddCommand(addFolderCmd)
 	addCmd.AddCommand(addSceneCmd)
 	moveCmd.AddCommand(moveSceneCmd)
@@ -425,6 +483,7 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// storyCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	showCmd.Flags().BoolP("json", "j", false, "Output json to stdout")
 	addFolderCmd.Flags().StringP("name", "n", "", "Set the name of the folder")
 	addFolderCmd.Flags().IntP("position", "p", 0, "Set the position of the folder in the project")
 	addSceneCmd.Flags().StringP("name", "n", "", "Set the name of the scene")

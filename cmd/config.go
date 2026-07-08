@@ -5,104 +5,14 @@ Copyright © 2026 Moses Sukumaran moses@solframe.in
 package cmd
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
-	"slices"
 
-	"github.com/BurntSushi/toml"
+	"github.com/moses-sf/draftcat/utilities"
 	"github.com/spf13/cobra"
 )
-
-type AuthorConfig struct {
-	Name    string
-	Email   string
-	Address string
-	Phone   string
-}
-
-func (a *AuthorConfig) Print() {
-	fmt.Println("Author Details -")
-	fmt.Printf("Name: %s\n", a.Name)
-	fmt.Printf("Email: %s\n", a.Email)
-	fmt.Printf("Address: %s\n", a.Address)
-	fmt.Printf("Phone Number: %s\n\n\n", a.Phone)
-}
-
-func (a *AuthorConfig) FillEmpty(oldconfig AuthorConfig) {
-	if a.Name == "" {
-		a.Name = oldconfig.Name
-	}
-	if a.Email == "" {
-		a.Email = oldconfig.Email
-	}
-	if a.Address == "" {
-		a.Address = oldconfig.Address
-	}
-	if a.Phone == "" {
-		a.Phone = oldconfig.Phone
-	}
-}
-
-func (a *AuthorConfig) UpdateFromOldConfig(configPath string) {
-	_, err := os.Stat(configPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			log.Fatalf("Error in file %s", err)
-		}
-	} else {
-		oldConfigData, err := os.ReadFile(configPath)
-		if err != nil {
-			log.Printf("Error reading file %s", err)
-		} else {
-			oldConfig := &Config{}
-			_, err = toml.Decode(string(oldConfigData), oldConfig)
-			if err != nil {
-				log.Printf("Error decoding config %s", err)
-			} else {
-				a.FillEmpty(oldConfig.Author)
-			}
-		}
-	}
-}
-
-func (a *AuthorConfig) Unset(cmd *cobra.Command, args []string) {
-	if len(args) > 0 {
-		if slices.Contains(args, "name") {
-			a.Name = ""
-		}
-		if slices.Contains(args, "address") {
-			a.Address = ""
-		}
-		if slices.Contains(args, "email") {
-			a.Email = ""
-		}
-		if slices.Contains(args, "phone") {
-			a.Phone = ""
-		}
-	} else {
-		fmt.Println("Select the variables to unset")
-	}
-}
-
-type Config struct {
-	Author AuthorConfig
-}
-
-func (c *Config) WriteConfig(path string) {
-	buf := new(bytes.Buffer)
-	encoder := toml.NewEncoder(buf)
-	err := encoder.Encode(c)
-	if err != nil {
-		log.Fatalf("Error in creating config %s", err)
-	}
-	err = os.WriteFile(path, buf.Bytes(), 0o644)
-	if err != nil {
-		log.Fatalf("Error in creating config file %s", err)
-	}
-}
 
 func ConfigDirCreation(configDirPath string) {
 	// Create Config Directory
@@ -119,9 +29,9 @@ func ConfigDirCreation(configDirPath string) {
 	}
 }
 
-func NewConfigFromCommand(cmd *cobra.Command) AuthorConfig {
+func NewConfigFromCommand(cmd *cobra.Command) utilities.AuthorConfig {
 	// Generate Config Toml
-	authorConfig := AuthorConfig{}
+	authorConfig := utilities.AuthorConfig{}
 	if cmd.Flag("name").Changed {
 		name, err := cmd.Flags().GetString("name")
 		if err != nil {
@@ -199,7 +109,7 @@ var configSetCmd = &cobra.Command{
 		authorConfig := NewConfigFromCommand(cmd)
 		authorConfig.UpdateFromOldConfig(path.file)
 
-		config := Config{
+		config := utilities.Config{
 			Author: authorConfig,
 		}
 
@@ -215,11 +125,11 @@ var configUnsetCmd = &cobra.Command{
 		path := ConfigPaths()
 		ConfigDirCreation(path.dirPath)
 
-		authorConfig := &AuthorConfig{}
+		authorConfig := &utilities.AuthorConfig{}
 		authorConfig.UpdateFromOldConfig(path.file)
 		authorConfig.Unset(cmd, args)
 
-		config := Config{
+		config := utilities.Config{
 			Author: *authorConfig,
 		}
 		config.WriteConfig(path.file)
@@ -234,7 +144,7 @@ var configShowCmd = &cobra.Command{
 		path := ConfigPaths()
 		ConfigDirCreation(path.dirPath)
 
-		authorConfig := &AuthorConfig{}
+		authorConfig := &utilities.AuthorConfig{}
 		authorConfig.UpdateFromOldConfig(path.file)
 		fmt.Println(authorConfig)
 	},

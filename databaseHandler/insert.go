@@ -54,12 +54,16 @@ func InsertChapterAtPosition(db *sql.DB, chapter ChapterCreate) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	res, err := tx.Exec(`INSERT INTO chapters (name, path, position, parent_id
+	res, err := tx.Exec(`INSERT INTO chapters (name, path, position, parent_id)
     VALUES (?, ?, ?, ?)`, chapter.Name, chapter.Path, chapter.Position, chapter.ParentID)
 	if err != nil {
 		return 0, err
 	}
 	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	err = tx.Commit()
 	if err != nil {
 		return 0, err
 	}
@@ -102,6 +106,10 @@ func InsertSceneAtPosition(db *sql.DB, scene SceneCreate) (int, error) {
 		return 0, err
 	}
 	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	err = tx.Commit()
 	if err != nil {
 		return 0, err
 	}

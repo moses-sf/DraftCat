@@ -6,7 +6,6 @@ package cmd
 
 import (
 	"bufio"
-	"bytes"
 	"database/sql"
 	"embed"
 	"fmt"
@@ -16,44 +15,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/BurntSushi/toml"
+	"github.com/moses-sf/draftcat/utilities"
 	"github.com/spf13/cobra"
 	_ "modernc.org/sqlite"
 )
 
 //go:embed db/0001_init.sql
 var schemaFS embed.FS
-
-type StoryType string
-
-const (
-	Short   StoryType = "Short Story"
-	Novella StoryType = "Novella"
-	Novel   StoryType = "Novel"
-)
-
-type StoryMetaData struct {
-	Name string
-	Type StoryType
-}
-
-type StoryConfig struct {
-	Author   AuthorConfig
-	MetaData StoryMetaData
-}
-
-func (s *StoryConfig) WriteConfig(path string) {
-	buf := new(bytes.Buffer)
-	encoder := toml.NewEncoder(buf)
-	err := encoder.Encode(s)
-	if err != nil {
-		log.Fatalf("Error in creating config %s", err)
-	}
-	err = os.WriteFile(path, buf.Bytes(), 0o644)
-	if err != nil {
-		log.Fatalf("Error in creating config file %s", err)
-	}
-}
 
 func CreateDirectory(path string) error {
 	_, err := os.Stat(path)
@@ -84,13 +52,18 @@ func CreateStoryDirectorys(name string) (string, error) {
 	return path, nil
 }
 
-func UpdateAuthorData() (*AuthorConfig, error) {
-	reader := bufio.NewReader(os.Stdin)
+func LoadAuthorData() (*utilities.AuthorConfig, error) {
 	paths := ConfigPaths()
 	ConfigDirCreation(paths.dirPath)
 
-	authorConfig := &AuthorConfig{}
+	authorConfig := &utilities.AuthorConfig{}
 	authorConfig.UpdateFromOldConfig(paths.file)
+	return authorConfig, nil
+}
+
+func UpdateAuthorData(authorConfig *utilities.AuthorConfig) (*utilities.AuthorConfig, error) {
+	fmt.Println("Story Metadata")
+	reader := bufio.NewReader(os.Stdin)
 	authorConfig.Print()
 
 	for {
@@ -167,7 +140,7 @@ func UpdateAuthorData() (*AuthorConfig, error) {
 	}
 }
 
-func CreateShortStory(name string) (string, error) {
+func CreateShortStory(name string, defaults bool) (string, error) {
 	storyName := ""
 	reader := bufio.NewReader(os.Stdin)
 	if name == "" {
@@ -183,24 +156,28 @@ func CreateShortStory(name string) (string, error) {
 			return "", fmt.Errorf("story name cannot be empty")
 		}
 	} else {
-		fmt.Println("Else path")
 		storyName = name
 	}
 	path, err := CreateStoryDirectorys(storyName)
 	if err != nil {
 		return "", err
 	}
-	fmt.Println("Story Metadata")
-	authorConfig, err := UpdateAuthorData()
+	authorConfig, err := LoadAuthorData()
 	if err != nil {
 		return "", err
 	}
+	if !defaults {
+		authorConfig, err = UpdateAuthorData(authorConfig)
+		if err != nil {
+			return "", nil
+		}
+	}
 	storyTomlPath := filepath.Join(path, ".story.toml")
-	storyConfig := &StoryConfig{
+	storyConfig := &utilities.StoryConfig{
 		Author: *authorConfig,
-		MetaData: StoryMetaData{
+		MetaData: utilities.StoryMetaData{
 			Name: storyName,
-			Type: Short,
+			Type: utilities.Short,
 		},
 	}
 	storyConfig.WriteConfig(storyTomlPath)
@@ -241,18 +218,30 @@ var initCmd = &cobra.Command{
 				fmt.Println("Error in retrieving name")
 				return
 			}
-			path, err := CreateShortStory(name)
+			defaults, err := cmd.Flags().GetBool("defaults")
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			path, err := CreateShortStory(name, defaults)
 			if err != nil {
 				fmt.Printf("Short Story creation failed: %s\n", err)
 				return
 			}
-			ex := exec.Command("nvim", path)
-			ex.Stdin = os.Stdin
-			ex.Stdout = os.Stdout
-			ex.Stderr = os.Stderr
+			vim, err := cmd.Flags().GetBool("vim")
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			if vim {
+				ex := exec.Command("nvim", path)
+				ex.Stdin = os.Stdin
+				ex.Stdout = os.Stdout
+				ex.Stderr = os.Stderr
 
-			if err := ex.Run(); err != nil {
-				log.Println("nvim exited with error:", err)
+				if err := ex.Run(); err != nil {
+					log.Println("nvim exited with error:", err)
+				}
 			}
 		default:
 			log.Fatal("Incorrect argument, refer to help for valid types")
@@ -273,4 +262,6 @@ func init() {
 	// is called directly, e.g.:
 	// initCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	initCmd.Flags().StringP("name", "n", "", "Title of the Work")
+	initCmd.Flags().BoolP("vim", "v", false, "Start neovim")
+	initCmd.Flags().BoolP("defaults", "d", false, "Use global author default config")
 }

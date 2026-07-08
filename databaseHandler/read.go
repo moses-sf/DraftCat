@@ -13,18 +13,12 @@ import (
 
 func GetMaxChapterPosition(db *sql.DB, parentID sql.NullInt64) (int, error) {
 	var maxPosition int
-	res, err := db.Query(`SELECT COALESCE(MAX(position), 0) FROM chapters WHERE parent_id=?`, parentID)
-	if err != nil {
-		return 0, err
+	var err error
+	if parentID.Valid {
+		err = db.QueryRow(`SELECT COALESCE(MAX(position), 0) FROM chapters WHERE parent_id=?`, parentID).Scan(&maxPosition)
+	} else {
+		err = db.QueryRow(`SELECT COALESCE(MAX(position), 0) FROM chapters WHERE parent_id IS NULL`, parentID).Scan(&maxPosition)
 	}
-	defer func(r *sql.Rows) {
-		err := r.Close()
-		if err != nil {
-			fmt.Println("error closing rows")
-		}
-	}(res)
-	res.Next()
-	err = res.Scan(&maxPosition)
 	if err != nil {
 		return 0, err
 	}
@@ -39,4 +33,37 @@ func GetMaxScenePosition(db *sql.DB, chapter int) (int, error) {
 		return 0, err
 	}
 	return maxPosition, nil
+}
+
+func GetChapterNodes(db *sql.DB) ([]Chapter, error) {
+	chapters := make([]Chapter, 0)
+	res, err := db.Query(`SELECT id, parent_id, name, path, position, word_count FROM chapters ORDER BY parent_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := res.Close(); closeErr != nil {
+			fmt.Println("error closing chapter rows:", closeErr)
+		}
+	}()
+	for res.Next() {
+		chapter := Chapter{}
+		err = res.Scan(
+			&chapter.ID,
+			&chapter.ParentID,
+			&chapter.Name,
+			&chapter.Path,
+			&chapter.Position,
+			&chapter.WordCount,
+		)
+		if err != nil {
+			return nil, err
+		}
+		chapters = append(chapters, chapter)
+	}
+
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+	return chapters, nil
 }

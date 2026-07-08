@@ -41,9 +41,9 @@ func GetFolderToml(path string) bool {
 	return err == nil
 }
 
-func LoadChapterToml(path string) (*ChapterMetaData, error) {
+func LoadChapterToml(root string) (*ChapterMetaData, error) {
 	chapter := &ChapterMetaData{}
-	file, err := os.ReadFile(filepath.Join(path, ".chapter.toml"))
+	file, err := os.ReadFile(filepath.Join(root, ".chapter.toml"))
 	if err != nil {
 		return nil, err
 	}
@@ -65,4 +65,24 @@ func IsDraftcatProject() (bool, error) {
 		return true, nil
 	}
 	return false, fmt.Errorf("not a draftcat project")
+}
+
+func GetRelativeRootPath() (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	chapterPath := filepath.Join(cwd, ".chapter.toml")
+	storyPath := filepath.Join(cwd, ".story.toml")
+	if GetFolderToml(storyPath) {
+		return cwd, nil
+	} else if GetFolderToml(chapterPath) {
+		chapter, err := LoadChapterToml(cwd)
+		if err != nil {
+			return "", fmt.Errorf("error loading chapter data %s", err)
+		}
+		return filepath.Join(cwd, chapter.PathToRoot), nil
+	} else {
+		return "", fmt.Errorf("could not get root")
+	}
 }
