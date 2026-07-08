@@ -37,6 +37,35 @@ func AddChapter(db *sql.DB, chapter ChapterCreate) (int, error) {
 	return int(id), nil
 }
 
+func InsertChapterAtPosition(db *sql.DB, chapter ChapterCreate) (int, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
+			fmt.Println("rollback error:", rollbackErr)
+		}
+	}()
+	_, err = tx.Exec(`UPDATE chapters
+    SET position = position + 1
+    WHERE parent_id=?
+    AND position >=?`, chapter.ParentID, chapter.Position)
+	if err != nil {
+		return 0, err
+	}
+	res, err := tx.Exec(`INSERT INTO chapters (name, path, position, parent_id
+    VALUES (?, ?, ?, ?)`, chapter.Name, chapter.Path, chapter.Position, chapter.ParentID)
+	if err != nil {
+		return 0, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return int(id), nil
+}
+
 func AddScene(db *sql.DB, scene SceneCreate) (int, error) {
 	res, err := db.Exec(`INSERT INTO scenes (chapter_id, name, path, position)
 		VALUES (?, ?, ?, ?)`, scene.ChapterID, scene.Name, scene.Path, scene.Position)

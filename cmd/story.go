@@ -13,39 +13,9 @@ import (
 
 	"github.com/BurntSushi/toml"
 	databasehandler "github.com/moses-sf/draftcat/databaseHandler"
+	"github.com/moses-sf/draftcat/utilities"
 	"github.com/spf13/cobra"
 )
-
-func FindToml(tomlName string) (string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	_, err = os.Stat(filepath.Join(cwd, tomlName))
-	if err != nil {
-		if os.IsNotExist(err) {
-			fmt.Println("Attempting to find local file")
-		}
-		return "", err
-	} else {
-		return cwd, nil
-	}
-}
-
-type SceneMetaData struct {
-	ID       int
-	Name     string
-	Path     string
-	Position int
-}
-
-type ChapterMetaData struct {
-	ID         int
-	ParentID   sql.NullInt64
-	PathToRoot string
-	Position   int
-	Scenes     []SceneMetaData
-}
 
 func CreateScene(path string) error {
 	_, err := os.Stat(path)
@@ -60,7 +30,7 @@ func CreateScene(path string) error {
 	return nil
 }
 
-func CreateChapter(db *sql.DB, path, name, root string, parentID sql.NullInt64) error {
+func CreateChapter(db *sql.DB, path, name, root string, parentID sql.NullInt64, position int) error {
 	info, err := os.Stat(path)
 
 	if err == nil {
@@ -75,15 +45,19 @@ func CreateChapter(db *sql.DB, path, name, root string, parentID sql.NullInt64) 
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		return fmt.Errorf("create folder %s: %w", path, err)
 	}
-	newPosition, err := databasehandler.GetMaxChapterPosition(db, parentID)
+	newPosition := position
+	maxPosition, err := databasehandler.GetMaxChapterPosition(db, parentID)
 	if err != nil {
 		return err
 	}
-	chapID, err := databasehandler.AddChapter(db, databasehandler.ChapterCreate{
+	if newPosition == 0 || newPosition > maxPosition {
+		newPosition = maxPosition + 1
+	}
+	chapID, err := databasehandler.InsertChapterAtPosition(db, databasehandler.ChapterCreate{
 		Name:     name,
 		ParentID: parentID,
 		Path:     path,
-		Position: newPosition + 1,
+		Position: newPosition,
 	})
 	if err != nil {
 		return err
@@ -102,14 +76,14 @@ func CreateChapter(db *sql.DB, path, name, root string, parentID sql.NullInt64) 
 	if err != nil {
 		return err
 	}
-	scene := make([]SceneMetaData, 0)
-	scene = append(scene, SceneMetaData{
+	scene := make([]utilities.SceneMetaData, 0)
+	scene = append(scene, utilities.SceneMetaData{
 		ID:       sceneID,
 		Name:     "scene",
 		Path:     path,
 		Position: 1,
 	})
-	chapter := ChapterMetaData{
+	chapter := utilities.ChapterMetaData{
 		ID: chapID,
 		ParentID: sql.NullInt64{
 			Valid: false,
@@ -163,6 +137,11 @@ var storyCmd = &cobra.Command{
 	Short: "Root command for story manipulation",
 	Long:  `Story editing commands`,
 	Run: func(cmd *cobra.Command, args []string) {
+		_, err := utilities.IsDraftcatProject()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 		fmt.Println("story called")
 	},
 }
@@ -172,6 +151,11 @@ var addCmd = &cobra.Command{
 	Short: "Add story element",
 	Long:  "Add Story elements",
 	Run: func(cmd *cobra.Command, args []string) {
+		_, err := utilities.IsDraftcatProject()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 		fmt.Println("use add [element] to add an element in your current folder")
 	},
 }
@@ -185,9 +169,15 @@ var addFolderCmd = &cobra.Command{
 		var chapterName string
 		parent := false
 		root := ".."
-		cwd, err := FindToml(".story.toml")
+		position := 0
+		_, err := utilities.IsDraftcatProject()
 		if err != nil {
-			cwd, err = FindToml(".chapter.toml")
+			fmt.Println(err)
+			return
+		}
+		cwd, err := utilities.FindToml(".story.toml")
+		if err != nil {
+			cwd, err = utilities.FindToml(".chapter.toml")
 			if err != nil {
 				fmt.Println("Error retrieving root directory. Does .story.toml or .chapter.toml exist in this folder?")
 			}
@@ -207,9 +197,18 @@ var addFolderCmd = &cobra.Command{
 		parentID := sql.NullInt64{
 			Valid: false,
 		}
+
+		if cmd.Flags().Changed("position") {
+			pos, err := cmd.Flags().GetInt("position")
+			if err != nil {
+				fmt.Println("Can't register position")
+				return
+			}
+			position = pos
+		}
 		dbPath := filepath.Join(cwd, ".story.db")
 		if parent {
-			chapter, err := LoadChapterToml(cwd)
+			chapter, err := utilities.LoadChapterToml(cwd)
 			if err != nil {
 				fmt.Println("Couldn't load folder data")
 				return
@@ -245,7 +244,7 @@ var addFolderCmd = &cobra.Command{
 				return
 			}
 		}
-		err = CreateChapter(db, filepath.Join(cwd, chapterName), chapterName, root, parentID)
+		err = CreateChapter(db, filepath.Join(cwd, chapterName), chapterName, root, parentID, position)
 		if err != nil {
 			fmt.Println("Chapter Creation Failed", err)
 			return
@@ -253,43 +252,26 @@ var addFolderCmd = &cobra.Command{
 	},
 }
 
-func FindFolderToml() (string, error) {
-	return "", nil
-}
-
-func GetFolderToml(path string) bool {
-	_, err := os.Stat(filepath.Join(path, ".chapter.toml"))
-	return err == nil
-}
-
-func LoadChapterToml(path string) (*ChapterMetaData, error) {
-	chapter := &ChapterMetaData{}
-	file, err := os.ReadFile(filepath.Join(path, ".chapter.toml"))
-	if err != nil {
-		return nil, err
-	}
-	_, err = toml.Decode(string(file), chapter)
-	if err != nil {
-		return nil, err
-	}
-	return chapter, nil
-}
-
 var addSceneCmd = &cobra.Command{
 	Use:   "scene",
 	Short: "Add a scene.md",
 	Long:  "Add a basic scene markdown file",
 	Run: func(cmd *cobra.Command, args []string) {
+		_, err := utilities.IsDraftcatProject()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 		cwd, err := os.Getwd()
 		if err != nil {
 			fmt.Println("Error getting current directory")
 			return
 		}
-		if !GetFolderToml(cwd) {
+		if !utilities.GetFolderToml(filepath.Join(cwd, ".chapter.toml")) {
 			fmt.Println("Incorrect folder, not created from Draftcat. Please make sure you're in a folder generated from DraftCat.")
 			return
 		}
-		chapter, err := LoadChapterToml(cwd)
+		chapter, err := utilities.LoadChapterToml(cwd)
 		if err != nil {
 			fmt.Println("Error in loading metadata")
 			return
@@ -352,7 +334,7 @@ var addSceneCmd = &cobra.Command{
 			fmt.Println("Scene Id not updated")
 			return
 		}
-		chapter.Scenes = append(chapter.Scenes, SceneMetaData{
+		chapter.Scenes = append(chapter.Scenes, utilities.SceneMetaData{
 			ID:       sceneID,
 			Name:     sceneName,
 			Path:     scenePath,
@@ -375,11 +357,64 @@ var addSceneCmd = &cobra.Command{
 	},
 }
 
+var moveCmd = &cobra.Command{
+	Use:   "move",
+	Short: "Move a folder or Scene",
+	Long:  "Move a folder or scene",
+	Run: func(cmd *cobra.Command, args []string) {
+		_, err := utilities.IsDraftcatProject()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Println("Select a Subcommand")
+	},
+}
+
+var moveSceneCmd = &cobra.Command{
+	Use:   "scene",
+	Short: "move a scene's position or folder and position",
+	Long:  "move a scene's position or folder and position",
+	Run: func(cmd *cobra.Command, args []string) {
+		_, err := utilities.IsDraftcatProject()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Println("Moving Scene")
+		if !cmd.Flags().Changed("position") || !cmd.Flags().Changed("sceneID") {
+			fmt.Println("Position or current Scene ID not defined")
+			return
+		}
+	},
+}
+
+var moveFolderCmd = &cobra.Command{
+	Use:   "scene",
+	Short: "move a folder's position or to a different folder and position",
+	Long:  "move a folder's position or to a different folder and position",
+	Run: func(cmd *cobra.Command, args []string) {
+		_, err := utilities.IsDraftcatProject()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Println("Moving Folder")
+		if !cmd.Flags().Changed("position") || !cmd.Flags().Changed("currentFolderID") {
+			fmt.Println("Position or current Folder ID not defined")
+			return
+		}
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(storyCmd)
 	storyCmd.AddCommand(addCmd)
+	storyCmd.AddCommand(moveCmd)
 	addCmd.AddCommand(addFolderCmd)
 	addCmd.AddCommand(addSceneCmd)
+	moveCmd.AddCommand(moveSceneCmd)
+	moveCmd.AddCommand(moveFolderCmd)
 
 	// Here you will define your flags and configuration settings.
 
@@ -394,4 +429,10 @@ func init() {
 	addFolderCmd.Flags().IntP("position", "p", 0, "Set the position of the folder in the project")
 	addSceneCmd.Flags().StringP("name", "n", "", "Set the name of the scene")
 	addSceneCmd.Flags().IntP("position", "p", 0, "Set the position of the scene in the chapter")
+	moveSceneCmd.Flags().IntP("folderID", "f", 0, "Set the folder to move the scene to, 0 refers to the root folder")
+	moveSceneCmd.Flags().IntP("sceneID", "s", 0, "Scene ID to be moved")
+	moveSceneCmd.Flags().IntP("position", "p", 0, "Set the position of the scene in the folder")
+	moveFolderCmd.Flags().IntP("currentFolderID", "c", 0, "Current Folder ID to be moved")
+	moveFolderCmd.Flags().IntP("newFolderID", "n", 0, "Set the folder to move the folder to, 0 refers to the root folder")
+	moveFolderCmd.Flags().IntP("position", "p", 0, "Set the position of the folder in the folder")
 }
