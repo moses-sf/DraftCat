@@ -443,7 +443,17 @@ var showCmd = &cobra.Command{
 			fmt.Println(err)
 			return
 		}
-		fmt.Println(chapters)
+
+		scenes, err := databasehandler.GetSceneNodes(db)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		rootNode, err := databasehandler.MapNodes(chapters, scenes)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 		storyConfig := &utilities.StoryConfig{}
 		err = storyConfig.LoadConfig(root)
 		if err != nil {
@@ -451,14 +461,15 @@ var showCmd = &cobra.Command{
 			return
 		}
 		story := &utilities.StoryStructure{
-			Name: storyConfig.MetaData.Name,
-			Root: root,
-			Type: string(storyConfig.MetaData.Type),
+			Name:     storyConfig.MetaData.Name,
+			Root:     root,
+			Type:     string(storyConfig.MetaData.Type),
+			RootNode: rootNode,
 		}
-		fmt.Println("Displaying story structure")
 		if json {
 			story.JSONRender()
 		} else {
+			fmt.Println("Displaying story structure")
 			story.Render()
 		}
 	},
