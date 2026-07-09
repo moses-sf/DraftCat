@@ -1,0 +1,21 @@
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS chapters (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  parent_id INTEGER,
+  name TEXT NOT NULL,
+  path TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  word_count INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (parent_id) REFERENCES chapters(id)
+);
+
+CREATE TABLE IF NOT EXISTS scenes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chapter_id INTEGER,
+  name TEXT NOT NULL,
+  path TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  word_count INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (chapter_id) REFERENCES chapters(id)
+);
