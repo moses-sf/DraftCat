@@ -49,17 +49,18 @@ type StoryConfig struct {
 	MetaData StoryMetaData
 }
 
-func (s *StoryConfig) WriteConfig(path string) {
+func (s *StoryConfig) WriteConfig(path string) error {
 	buf := new(bytes.Buffer)
 	encoder := toml.NewEncoder(buf)
 	err := encoder.Encode(s)
 	if err != nil {
-		log.Fatalf("Error in creating config %s", err)
+		return err
 	}
 	err = os.WriteFile(path, buf.Bytes(), 0o644)
 	if err != nil {
-		log.Fatalf("Error in creating config file %s", err)
+		return err
 	}
+	return nil
 }
 
 func (s *StoryConfig) LoadConfig(root string) error {

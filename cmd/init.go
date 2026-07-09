@@ -39,7 +39,7 @@ func CreateDirectory(path string) error {
 	}
 }
 
-func CreateStoryDirectorys(name string) (string, error) {
+func CreateStoryDirectory(name string) (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", err
@@ -140,10 +140,10 @@ func UpdateAuthorData(authorConfig *utilities.AuthorConfig) (*utilities.AuthorCo
 	}
 }
 
-func CreateShortStory(name string, defaults bool) (string, error) {
+func GetName(opts InitOptions) (string, error) {
 	storyName := ""
 	reader := bufio.NewReader(os.Stdin)
-	if name == "" {
+	if opts.Name == "" {
 
 		fmt.Println("Set Short Story details")
 		fmt.Print("Story Name: ")
@@ -156,50 +156,145 @@ func CreateShortStory(name string, defaults bool) (string, error) {
 			return "", fmt.Errorf("story name cannot be empty")
 		}
 	} else {
-		storyName = name
+		storyName = opts.Name
 	}
-	path, err := CreateStoryDirectorys(storyName)
-	if err != nil {
-		return "", err
-	}
+	return storyName, nil
+}
+
+func GetAuthorData(opts InitOptions) (*utilities.AuthorConfig, error) {
 	authorConfig, err := LoadAuthorData()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	if !defaults {
+	if !opts.Defaults {
 		authorConfig, err = UpdateAuthorData(authorConfig)
 		if err != nil {
-			return "", nil
+			return nil, err
 		}
+	}
+	return authorConfig, nil
+}
+
+func GenerateStoryScaffold(opts InitOptions, storyType utilities.StoryType) (string, error) {
+	storyName, err := GetName(opts)
+	if err != nil {
+		return "", err
+	}
+	path, err := CreateStoryDirectory(storyName)
+	if err != nil {
+		return "", err
+	}
+	authorConfig, err := GetAuthorData(opts)
+	if err != nil {
+		return "", err
 	}
 	storyTomlPath := filepath.Join(path, ".story.toml")
 	storyConfig := &utilities.StoryConfig{
 		Author: *authorConfig,
 		MetaData: utilities.StoryMetaData{
 			Name: storyName,
-			Type: utilities.Short,
+			Type: storyType,
 		},
 	}
-	storyConfig.WriteConfig(storyTomlPath)
-	db, err := sql.Open("sqlite", filepath.Join(path, ".story.db"))
-	if err != nil {
-		return path, err
-	}
-	defer func(DB *sql.DB) {
-		err = db.Close()
-		if err != nil {
-			log.Fatal("Error Closing DB")
-		}
-	}(db)
-	schema, err := schemaFS.ReadFile("db/0001_init.sql")
-	if err != nil {
-		return "", nil
-	}
-	_, err = db.Exec(string(schema))
+	err = storyConfig.WriteConfig(storyTomlPath)
 	if err != nil {
 		return "", err
 	}
 	return path, nil
+}
+
+func InitialiseDB(path string) error {
+	db, err := sql.Open("sqlite", filepath.Join(path, ".story.db"))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			log.Println("Error closing DB:", closeErr)
+		}
+	}()
+	schema, err := schemaFS.ReadFile("db/0001_init.sql")
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(string(schema))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func CreateShortStory(opts InitOptions) (string, error) {
+	// TODO: Short Story Scaffold
+	path, err := GenerateStoryScaffold(opts, utilities.Short)
+	if err != nil {
+		return "", err
+	}
+	err = InitialiseDB(path)
+	if err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func CreateNovella(opts InitOptions) (string, error) {
+	// TODO: Novella Scaffold
+	path, err := GenerateStoryScaffold(opts, utilities.Novella)
+	if err != nil {
+		return "", err
+	}
+	err = InitialiseDB(path)
+	if err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func CreateNovel(opts InitOptions) (string, error) {
+	// TODO: Novel Scaffold
+	path, err := GenerateStoryScaffold(opts, utilities.Novel)
+	if err != nil {
+		return "", err
+	}
+	err = InitialiseDB(path)
+	if err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+type InitOptions struct {
+	Name     string
+	WorkType string
+	Defaults bool
+	Vim      bool
+}
+
+func InitWork(opts InitOptions) (string, error) {
+	switch opts.WorkType {
+	case "short":
+		return CreateShortStory(opts)
+	case "novel":
+		return CreateNovel(opts)
+	case "novella":
+		return CreateNovella(opts)
+	default:
+		return "", fmt.Errorf("incorrect argument, refer to help for valid types")
+	}
+}
+
+func RunVim(initOptions InitOptions, path string) error {
+	if initOptions.Vim {
+		ex := exec.Command("nvim", path)
+		ex.Stdin = os.Stdin
+		ex.Stdout = os.Stdout
+		ex.Stderr = os.Stderr
+
+		if err := ex.Run(); err != nil {
+			log.Println("nvim exited with error:", err)
+		}
+	}
+	return nil
 }
 
 // initCmd represents the init command
@@ -211,40 +306,36 @@ var initCmd = &cobra.Command{
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		workType := args[0]
-		switch workType {
-		case "short":
-			name, err := cmd.Flags().GetString("name")
-			if err != nil {
-				fmt.Println("Error in retrieving name")
-				return
-			}
-			defaults, err := cmd.Flags().GetBool("defaults")
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			path, err := CreateShortStory(name, defaults)
-			if err != nil {
-				fmt.Printf("Short Story creation failed: %s\n", err)
-				return
-			}
-			vim, err := cmd.Flags().GetBool("vim")
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			if vim {
-				ex := exec.Command("nvim", path)
-				ex.Stdin = os.Stdin
-				ex.Stdout = os.Stdout
-				ex.Stderr = os.Stderr
-
-				if err := ex.Run(); err != nil {
-					log.Println("nvim exited with error:", err)
-				}
-			}
-		default:
-			log.Fatal("Incorrect argument, refer to help for valid types")
+		name, err := cmd.Flags().GetString("name")
+		if err != nil {
+			fmt.Println("Error in retrieving name")
+			return
+		}
+		defaults, err := cmd.Flags().GetBool("defaults")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		vim, err := cmd.Flags().GetBool("vim")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		initOptions := InitOptions{
+			Name:     name,
+			WorkType: workType,
+			Defaults: defaults,
+			Vim:      vim,
+		}
+		path, err := InitWork(initOptions)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		err = RunVim(initOptions, path)
+		if err != nil {
+			fmt.Println(err)
+			return
 		}
 	},
 }
