@@ -1,8 +1,9 @@
-module github.com/moses-sf/draftcat
+module github.com/moses-sf/DraftCat
 
 go 1.26.4
 
 require (
+	github.com/moses-sf/draftcat v0.0.0-20260709181647-ba3bd747dd53
 	github.com/spf13/cobra v1.10.2
 	modernc.org/sqlite v1.53.0
 )

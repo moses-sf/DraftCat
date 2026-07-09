@@ -13,7 +13,7 @@ Draftcat is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 To download the cli you need go v1.26+ and run
 
 ```bash
-go install
+go install github.com/moses-sf/DraftCat@latest
 ```
 
 Install [LazyVim](https://www.lazyvim.org/installation)
