@@ -258,7 +258,7 @@ var addSceneCmd = &cobra.Command{
 			fmt.Println("Error getting current directory")
 			return
 		}
-		if !utilities.GetFolderToml(filepath.Join(cwd, ".chapter.toml")) {
+		if !utilities.FolderTomlExists(filepath.Join(cwd, ".chapter.toml")) {
 			fmt.Println("Incorrect folder, not created from Draftcat. Please make sure you're in a folder generated from DraftCat.")
 			return
 		}
