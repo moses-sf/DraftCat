@@ -53,8 +53,14 @@ func CreateStoryDirectory(name string) (string, error) {
 }
 
 func LoadAuthorData() (*utilities.AuthorConfig, error) {
-	paths := ConfigPaths()
-	ConfigDirCreation(paths.dirPath)
+	paths, err := ConfigPaths()
+	if err != nil {
+		return nil, err
+	}
+	err = ConfigDirCreation(paths.dirPath)
+	if err != nil {
+		return nil, err
+	}
 
 	authorConfig := &utilities.AuthorConfig{}
 	authorConfig.UpdateFromOldConfig(paths.file)
