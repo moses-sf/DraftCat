@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -80,7 +81,7 @@ func CreateChapter(db *sql.DB, path, name, root string, parentID sql.NullInt64, 
 	scene = append(scene, utilities.SceneMetaData{
 		ID:       sceneID,
 		Name:     "scene",
-		Path:     path,
+		Path:     scenePath,
 		Position: 1,
 	})
 	chapter := utilities.ChapterMetaData{
@@ -89,7 +90,7 @@ func CreateChapter(db *sql.DB, path, name, root string, parentID sql.NullInt64, 
 			Valid: false,
 		},
 		PathToRoot: root,
-		Position:   newPosition + 1,
+		Position:   newPosition,
 		Scenes:     scene,
 	}
 	buf := new(bytes.Buffer)
@@ -104,31 +105,30 @@ func CreateChapter(db *sql.DB, path, name, root string, parentID sql.NullInt64, 
 }
 
 func ChapterExists(db *sql.DB, chapterName string, parentID sql.NullInt64) (bool, error) {
-	var chapters []string
-	res, err := db.Query(`SELECT name FROM chapters WHERE name=? AND parent_id=?`, chapterName, parentID)
-	defer func(r *sql.Rows) {
-		err = r.Close()
-		if err != nil {
-			fmt.Println(err)
-		}
-	}(res)
+	var count int
+	var err error
+
+	if parentID.Valid {
+		err = db.QueryRow(`
+			SELECT COUNT(*)
+			FROM chapters
+			WHERE name = ?
+			  AND parent_id = ?
+		`, chapterName, parentID.Int64).Scan(&count)
+	} else {
+		err = db.QueryRow(`
+			SELECT COUNT(*)
+			FROM chapters
+			WHERE name = ?
+			  AND parent_id IS NULL
+		`, chapterName).Scan(&count)
+	}
+
 	if err != nil {
-		fmt.Println("Could not run query")
 		return false, err
 	}
-	for res.Next() {
-		var currentString string
-		err := res.Scan(&currentString)
-		if err != nil {
-			continue
-		}
-		chapters = append(chapters, currentString)
-	}
-	fmt.Println(chapters)
-	if len(chapters) > 0 {
-		return true, nil
-	}
-	return false, nil
+
+	return count > 0, nil
 }
 
 // storyCmd represents the story command
@@ -217,12 +217,11 @@ var addFolderCmd = &cobra.Command{
 			fmt.Println("Could not access story DB, please run drafcat story repair")
 			return
 		}
-		defer func(d *sql.DB) {
-			err = db.Close()
-			if err != nil {
-				fmt.Println(err)
+		defer func() {
+			if closeErr := db.Close(); closeErr != nil {
+				log.Println("Error closing DB:", closeErr)
 			}
-		}(db)
+		}()
 		nameExists, err := ChapterExists(db, chapterName, parentID)
 		if err != nil {
 			fmt.Println("error retrieving data")
@@ -259,7 +258,7 @@ var addSceneCmd = &cobra.Command{
 			fmt.Println("Error getting current directory")
 			return
 		}
-		if !utilities.GetFolderToml(filepath.Join(cwd, ".chapter.toml")) {
+		if !utilities.FolderTomlExists(filepath.Join(cwd, ".chapter.toml")) {
 			fmt.Println("Incorrect folder, not created from Draftcat. Please make sure you're in a folder generated from DraftCat.")
 			return
 		}
@@ -397,66 +396,66 @@ var moveFolderCmd = &cobra.Command{
 	},
 }
 
+func BuildStoryProject() (*utilities.StoryStructure, error) {
+	_, err := utilities.IsDraftcatProject()
+	if err != nil {
+		return nil, err
+	}
+	root, err := utilities.GetRelativeRootPath()
+	if err != nil {
+		return nil, err
+	}
+
+	dbPath := filepath.Join(root, ".story.db")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			log.Println("Error closing DB:", closeErr)
+		}
+	}()
+	chapters, err := databasehandler.GetChapterNodes(db)
+	if err != nil {
+		return nil, err
+	}
+
+	scenes, err := databasehandler.GetSceneNodes(db)
+	if err != nil {
+		return nil, err
+	}
+	rootNode, err := databasehandler.MapNodes(chapters, scenes)
+	if err != nil {
+		return nil, err
+	}
+	storyConfig := &utilities.StoryConfig{}
+	err = storyConfig.LoadConfig(root)
+	if err != nil {
+		return nil, err
+	}
+	return &utilities.StoryStructure{
+		Name:     storyConfig.MetaData.Name,
+		Root:     root,
+		Type:     string(storyConfig.MetaData.Type),
+		RootNode: rootNode,
+	}, nil
+}
+
 var showCmd = &cobra.Command{
 	Use:   "show",
 	Short: "display the story structure",
 	Long:  "display the story structure, use j for json output",
 	Run: func(cmd *cobra.Command, args []string) {
-		_, err := utilities.IsDraftcatProject()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		root, err := utilities.GetRelativeRootPath()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
 		json, err := cmd.Flags().GetBool("json")
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-
-		dbPath := filepath.Join(root, ".story.db")
-		db, err := sql.Open("sqlite", dbPath)
+		story, err := BuildStoryProject()
 		if err != nil {
 			fmt.Println(err)
 			return
-		}
-		defer func(d *sql.DB) {
-			err = db.Close()
-			if err != nil {
-				fmt.Println(err)
-			}
-		}(db)
-		chapters, err := databasehandler.GetChapterNodes(db)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		scenes, err := databasehandler.GetSceneNodes(db)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		rootNode, err := databasehandler.MapNodes(chapters, scenes)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		storyConfig := &utilities.StoryConfig{}
-		err = storyConfig.LoadConfig(root)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		story := &utilities.StoryStructure{
-			Name:     storyConfig.MetaData.Name,
-			Root:     root,
-			Type:     string(storyConfig.MetaData.Type),
-			RootNode: rootNode,
 		}
 		if json {
 			story.JSONRender()

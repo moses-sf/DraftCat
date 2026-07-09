@@ -49,17 +49,18 @@ type StoryConfig struct {
 	MetaData StoryMetaData
 }
 
-func (s *StoryConfig) WriteConfig(path string) {
+func (s *StoryConfig) WriteConfig(path string) error {
 	buf := new(bytes.Buffer)
 	encoder := toml.NewEncoder(buf)
 	err := encoder.Encode(s)
 	if err != nil {
-		log.Fatalf("Error in creating config %s", err)
+		return err
 	}
 	err = os.WriteFile(path, buf.Bytes(), 0o644)
 	if err != nil {
-		log.Fatalf("Error in creating config file %s", err)
+		return err
 	}
+	return nil
 }
 
 func (s *StoryConfig) LoadConfig(root string) error {
@@ -104,11 +105,11 @@ func (a *AuthorConfig) FillEmpty(oldconfig AuthorConfig) {
 	}
 }
 
-func (a *AuthorConfig) UpdateFromOldConfig(configPath string) {
+func (a *AuthorConfig) UpdateFromOldConfig(configPath string) error {
 	_, err := os.Stat(configPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			log.Fatalf("Error in file %s", err)
+			return err
 		}
 	} else {
 		oldConfigData, err := os.ReadFile(configPath)
@@ -124,6 +125,7 @@ func (a *AuthorConfig) UpdateFromOldConfig(configPath string) {
 			}
 		}
 	}
+	return nil
 }
 
 func (a *AuthorConfig) Unset(cmd *cobra.Command, args []string) {
@@ -149,15 +151,16 @@ type Config struct {
 	Author AuthorConfig
 }
 
-func (c *Config) WriteConfig(path string) {
+func (c *Config) WriteConfig(path string) error {
 	buf := new(bytes.Buffer)
 	encoder := toml.NewEncoder(buf)
 	err := encoder.Encode(c)
 	if err != nil {
-		log.Fatalf("Error in creating config %s", err)
+		return err
 	}
 	err = os.WriteFile(path, buf.Bytes(), 0o644)
 	if err != nil {
-		log.Fatalf("Error in creating config file %s", err)
+		return err
 	}
+	return nil
 }

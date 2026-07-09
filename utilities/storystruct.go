@@ -22,6 +22,7 @@ func (s *StoryStructure) JSONRender() {
 	j, err := json.Marshal(s)
 	if err != nil {
 		fmt.Println(`{"error": "could not render struct"}`)
+		return
 	}
 	fmt.Println(string(j))
 }

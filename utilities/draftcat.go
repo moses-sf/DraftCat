@@ -32,13 +32,9 @@ func FindTomlPath(path, tomlName string) (string, error) {
 	}
 }
 
-func FindFolderToml() (string, error) {
-	return "", nil
-}
-
-func GetFolderToml(path string) bool {
-	_, err := os.Stat(filepath.Join(path))
-	return err == nil
+func FolderTomlExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 func LoadChapterToml(root string) (*ChapterMetaData, error) {
@@ -61,7 +57,7 @@ func IsDraftcatProject() (bool, error) {
 	}
 	chapterPath := filepath.Join(cwd, ".chapter.toml")
 	storyPath := filepath.Join(cwd, ".story.toml")
-	if GetFolderToml(chapterPath) || GetFolderToml(storyPath) {
+	if FolderTomlExists(chapterPath) || FolderTomlExists(storyPath) {
 		return true, nil
 	}
 	return false, fmt.Errorf("not a draftcat project")
@@ -74,9 +70,9 @@ func GetRelativeRootPath() (string, error) {
 	}
 	chapterPath := filepath.Join(cwd, ".chapter.toml")
 	storyPath := filepath.Join(cwd, ".story.toml")
-	if GetFolderToml(storyPath) {
+	if FolderTomlExists(storyPath) {
 		return cwd, nil
-	} else if GetFolderToml(chapterPath) {
+	} else if FolderTomlExists(chapterPath) {
 		chapter, err := LoadChapterToml(cwd)
 		if err != nil {
 			return "", fmt.Errorf("error loading chapter data %s", err)

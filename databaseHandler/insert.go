@@ -42,31 +42,50 @@ func InsertChapterAtPosition(db *sql.DB, chapter ChapterCreate) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	defer func() {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
 			fmt.Println("rollback error:", rollbackErr)
 		}
 	}()
-	_, err = tx.Exec(`UPDATE chapters
-    SET position = position + 1
-    WHERE parent_id=?
-    AND position >=?`, chapter.ParentID, chapter.Position)
+
+	if chapter.ParentID.Valid {
+		_, err = tx.Exec(`
+			UPDATE chapters
+			SET position = position + 1
+			WHERE parent_id = ?
+			  AND position >= ?
+		`, chapter.ParentID.Int64, chapter.Position)
+	} else {
+		_, err = tx.Exec(`
+			UPDATE chapters
+			SET position = position + 1
+			WHERE parent_id IS NULL
+			  AND position >= ?
+		`, chapter.Position)
+	}
+
 	if err != nil {
 		return 0, err
 	}
-	res, err := tx.Exec(`INSERT INTO chapters (name, path, position, parent_id)
-    VALUES (?, ?, ?, ?)`, chapter.Name, chapter.Path, chapter.Position, chapter.ParentID)
+
+	res, err := tx.Exec(`
+		INSERT INTO chapters (name, path, position, parent_id)
+		VALUES (?, ?, ?, ?)
+	`, chapter.Name, chapter.Path, chapter.Position, chapter.ParentID)
 	if err != nil {
 		return 0, err
 	}
+
 	id, err := res.LastInsertId()
 	if err != nil {
 		return 0, err
 	}
-	err = tx.Commit()
-	if err != nil {
+
+	if err := tx.Commit(); err != nil {
 		return 0, err
 	}
+
 	return int(id), nil
 }
 

@@ -15,9 +15,9 @@ func GetMaxChapterPosition(db *sql.DB, parentID sql.NullInt64) (int, error) {
 	var maxPosition int
 	var err error
 	if parentID.Valid {
-		err = db.QueryRow(`SELECT COALESCE(MAX(position), 0) FROM chapters WHERE parent_id=?`, parentID).Scan(&maxPosition)
+		err = db.QueryRow(`SELECT COALESCE(MAX(position), 0) FROM chapters WHERE parent_id=?`, parentID.Int64).Scan(&maxPosition)
 	} else {
-		err = db.QueryRow(`SELECT COALESCE(MAX(position), 0) FROM chapters WHERE parent_id IS NULL`, parentID).Scan(&maxPosition)
+		err = db.QueryRow(`SELECT COALESCE(MAX(position), 0) FROM chapters WHERE parent_id IS NULL`).Scan(&maxPosition)
 	}
 	if err != nil {
 		return 0, err

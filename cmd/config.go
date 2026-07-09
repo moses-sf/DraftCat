@@ -6,7 +6,6 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -14,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func ConfigDirCreation(configDirPath string) {
+func ConfigDirCreation(configDirPath string) error {
 	// Create Config Directory
 	exists, err := os.Stat(configDirPath)
 	if err != nil {
@@ -22,20 +21,21 @@ func ConfigDirCreation(configDirPath string) {
 			err = os.MkdirAll(configDirPath, 0o755)
 		}
 		if err != nil {
-			log.Fatalf("Error creating Directory %s", err)
+			return err
 		}
 	} else if !exists.IsDir() {
-		log.Fatalf("Error something with this name not a directory exists: %s", configDirPath)
+		return fmt.Errorf("error something with this name not a directory exists: %s", configDirPath)
 	}
+	return nil
 }
 
-func NewConfigFromCommand(cmd *cobra.Command) utilities.AuthorConfig {
+func NewConfigFromCommand(cmd *cobra.Command) (*utilities.AuthorConfig, error) {
 	// Generate Config Toml
-	authorConfig := utilities.AuthorConfig{}
+	authorConfig := &utilities.AuthorConfig{}
 	if cmd.Flag("name").Changed {
 		name, err := cmd.Flags().GetString("name")
 		if err != nil {
-			log.Println("error in setting name")
+			return nil, err
 		} else {
 			authorConfig.Name = name
 		}
@@ -44,7 +44,7 @@ func NewConfigFromCommand(cmd *cobra.Command) utilities.AuthorConfig {
 	if cmd.Flag("email").Changed {
 		email, err := cmd.Flags().GetString("email")
 		if err != nil {
-			log.Println("error in setting email")
+			return nil, err
 		} else {
 			authorConfig.Email = email
 		}
@@ -53,7 +53,7 @@ func NewConfigFromCommand(cmd *cobra.Command) utilities.AuthorConfig {
 	if cmd.Flag("address").Changed {
 		address, err := cmd.Flags().GetString("address")
 		if err != nil {
-			log.Println("error in setting email")
+			return nil, err
 		} else {
 			authorConfig.Address = address
 		}
@@ -62,12 +62,12 @@ func NewConfigFromCommand(cmd *cobra.Command) utilities.AuthorConfig {
 	if cmd.Flag("phone").Changed {
 		phone, err := cmd.Flags().GetString("phone")
 		if err != nil {
-			log.Println("error in setting email")
+			return nil, err
 		} else {
 			authorConfig.Phone = phone
 		}
 	}
-	return authorConfig
+	return authorConfig, nil
 }
 
 type Paths struct {
@@ -75,18 +75,18 @@ type Paths struct {
 	file    string
 }
 
-func ConfigPaths() Paths {
+func ConfigPaths() (*Paths, error) {
 	configDir, err := os.UserConfigDir()
 	if err != nil {
-		log.Fatal("Error getting config directory")
+		return nil, err
 	}
 	configDirPath := filepath.Join(configDir, "draftcat")
 	configPath := filepath.Join(configDirPath, "draftcat-config.toml")
-	path := Paths{
+	path := &Paths{
 		dirPath: configDirPath,
 		file:    configPath,
 	}
-	return path
+	return path, nil
 }
 
 // configCmd represents the config command
@@ -101,14 +101,25 @@ var configSetCmd = &cobra.Command{
 	Short: "Set Draftcat config variables",
 	Long:  "Set the Draftcat config variables",
 	Run: func(cmd *cobra.Command, args []string) {
-		path := ConfigPaths()
-		ConfigDirCreation(path.dirPath)
+		path, err := ConfigPaths()
+		if err != nil {
+			fmt.Println(err)
+		}
+		err = ConfigDirCreation(path.dirPath)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 
-		authorConfig := NewConfigFromCommand(cmd)
+		authorConfig, err := NewConfigFromCommand(cmd)
+		if err != nil {
+			fmt.Println("Error in generating config")
+			return
+		}
 		authorConfig.UpdateFromOldConfig(path.file)
 
 		config := utilities.Config{
-			Author: authorConfig,
+			Author: *authorConfig,
 		}
 
 		config.WriteConfig(path.file)
@@ -120,8 +131,16 @@ var configUnsetCmd = &cobra.Command{
 	Short: "Unset config Variables",
 	Long:  "Unset config variables",
 	Run: func(cmd *cobra.Command, args []string) {
-		path := ConfigPaths()
-		ConfigDirCreation(path.dirPath)
+		path, err := ConfigPaths()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		err = ConfigDirCreation(path.dirPath)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 
 		authorConfig := &utilities.AuthorConfig{}
 		authorConfig.UpdateFromOldConfig(path.file)
@@ -139,9 +158,16 @@ var configShowCmd = &cobra.Command{
 	Short: "Show Config",
 	Long:  "Show Config",
 	Run: func(cmd *cobra.Command, args []string) {
-		path := ConfigPaths()
-		ConfigDirCreation(path.dirPath)
-
+		path, err := ConfigPaths()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		err = ConfigDirCreation(path.dirPath)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 		authorConfig := &utilities.AuthorConfig{}
 		authorConfig.UpdateFromOldConfig(path.file)
 		fmt.Println(authorConfig)
