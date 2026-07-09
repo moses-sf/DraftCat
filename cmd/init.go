@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/moses-sf/draftcat/utilities"
+	"github.com/moses-sf/DraftCat/utilities"
 	"github.com/spf13/cobra"
 	_ "modernc.org/sqlite"
 )

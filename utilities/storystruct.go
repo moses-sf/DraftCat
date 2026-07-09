@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	databasehandler "github.com/moses-sf/draftcat/databaseHandler"
+	databasehandler "github.com/moses-sf/DraftCat/databaseHandler"
 )
 
 type StoryStructure struct {

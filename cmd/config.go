@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/moses-sf/draftcat/utilities"
+	"github.com/moses-sf/DraftCat/utilities"
 	"github.com/spf13/cobra"
 )
 
@@ -94,8 +94,6 @@ var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Set global config settings.",
 	Long:  `Set global config settings.`,
-	Run: func(cmd *cobra.Command, args []string) {
-	},
 }
 
 var configSetCmd = &cobra.Command{

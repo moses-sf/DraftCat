@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
-	databasehandler "github.com/moses-sf/draftcat/databaseHandler"
-	"github.com/moses-sf/draftcat/utilities"
+	databasehandler "github.com/moses-sf/DraftCat/databaseHandler"
+	"github.com/moses-sf/DraftCat/utilities"
 	"github.com/spf13/cobra"
 )
 
@@ -136,14 +136,6 @@ var storyCmd = &cobra.Command{
 	Use:   "story",
 	Short: "Root command for story manipulation",
 	Long:  `Story editing commands`,
-	Run: func(cmd *cobra.Command, args []string) {
-		_, err := utilities.IsDraftcatProject()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		fmt.Println("story called")
-	},
 }
 
 var addCmd = &cobra.Command{
