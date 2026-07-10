@@ -535,7 +535,7 @@ func RenameFolder(folderOpts *FolderRenameOptions) error {
 			return err
 		}
 	}
-	err = databasehandler.UpdateChapterPath(db, chapter)
+	err = databasehandler.UpdateChapterPathAndName(db, chapter)
 	if err != nil {
 		return err
 	}

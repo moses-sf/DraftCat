@@ -85,6 +85,23 @@ func GetChapterNodes(db *sql.DB) ([]Chapter, error) {
 	return chapters, nil
 }
 
+func GetScene(db *sql.DB, id int) (*Scene, error) {
+	scene := &Scene{}
+	res := db.QueryRow("SELECT id, chapter_id, name, path, position, word_count FROM scenes WHERE id=?", id)
+	err := res.Scan(
+		&scene.ID,
+		&scene.ChapterID,
+		&scene.Name,
+		&scene.Path,
+		&scene.Position,
+		&scene.WordCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return scene, nil
+}
+
 func GetSceneNodes(db *sql.DB) ([]Scene, error) {
 	scenes := make([]Scene, 0)
 	res, err := db.Query(`SELECT id, chapter_id, name, path, position, word_count FROM scenes ORDER BY chapter_id`)
