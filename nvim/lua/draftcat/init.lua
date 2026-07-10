@@ -1,4 +1,5 @@
 local M = {}
+
 local draftcat_picker = nil
 
 local function file_exists(path)
@@ -28,7 +29,19 @@ local function enable_text_wrapping()
   vim.opt_local.linebreak = true
   vim.opt_local.breakindent = true
   vim.opt_local.showbreak = "↳ "
-  vim.notify("Draftcat loaded and Enabled")
+  vim.notify("Draftcat loaded and enabled")
+end
+
+local function get_current_file_and_cwd()
+  local file = vim.api.nvim_buf_get_name(0)
+  file = vim.fn.fnamemodify(file, ":p")
+
+  local cwd = vim.fs.dirname(file)
+  if cwd == nil then
+    return nil, nil, "Could not determine current directory"
+  end
+
+  return file, cwd, nil
 end
 
 local function run_command(command, cwd)
@@ -63,13 +76,42 @@ local function run_command(command, cwd)
   return true
 end
 
-function M.add_scene()
-  local file = vim.api.nvim_buf_get_name(0)
-  file = vim.fn.fnamemodify(file, ":p")
+local function run_json_command(command, cwd)
+  local result = vim
+    .system(command, {
+      text = true,
+      cwd = cwd,
+    })
+    :wait()
 
-  local cwd = vim.fs.dirname(file)
-  if cwd == nil then
-    vim.notify("Could not determine current directory", vim.log.levels.ERROR)
+  if result.code ~= 0 then
+    local message = result.stderr
+
+    if message == nil or message == "" then
+      message = result.stdout
+    end
+
+    if message == nil or message == "" then
+      message = "Draftcat command failed"
+    end
+
+    vim.notify(message, vim.log.levels.ERROR)
+    return nil
+  end
+
+  local ok, data = pcall(vim.json.decode, result.stdout)
+  if not ok then
+    vim.notify("Could not parse Draftcat JSON", vim.log.levels.ERROR)
+    return nil
+  end
+
+  return data
+end
+
+function M.add_scene()
+  local file, cwd, err = get_current_file_and_cwd()
+  if err ~= nil then
+    vim.notify(err, vim.log.levels.ERROR)
     return
   end
 
@@ -126,12 +168,9 @@ function M.add_scene()
 end
 
 function M.list()
-  local file = vim.api.nvim_buf_get_name(0)
-  file = vim.fn.fnamemodify(file, ":p")
-
-  local cwd = vim.fs.dirname(file)
-  if cwd == nil then
-    vim.notify("Could not determine current directory", vim.log.levels.ERROR)
+  local file, cwd, err = get_current_file_and_cwd()
+  if err ~= nil then
+    vim.notify(err, vim.log.levels.ERROR)
     return
   end
 
@@ -148,36 +187,20 @@ function M.list()
   }, cwd)
 end
 
-local function run_json_command(command, cwd)
-  local result = vim
-    .system(command, {
-      text = true,
-      cwd = cwd,
-    })
-    :wait()
-
-  if result.code ~= 0 then
-    local message = result.stderr
-
-    if message == nil or message == "" then
-      message = result.stdout
-    end
-
-    if message == nil or message == "" then
-      message = "Draftcat command failed"
-    end
-
-    vim.notify(message, vim.log.levels.ERROR)
+local function sql_null_int_value(value)
+  if value == nil then
     return nil
   end
 
-  local ok, data = pcall(vim.json.decode, result.stdout)
-  if not ok then
-    vim.notify("Could not parse Draftcat JSON", vim.log.levels.ERROR)
-    return nil
+  if type(value) == "table" then
+    if value.Valid == false then
+      return nil
+    end
+
+    return value.Int64
   end
 
-  return data
+  return value
 end
 
 local function build_explorer_items(data)
@@ -186,8 +209,12 @@ local function build_explorer_items(data)
   table.insert(items, {
     text = data.name,
     path = data.root,
+    file = data.root,
     kind = "root",
+    dir = true,
     depth = 0,
+    visible = true,
+    rooted = true,
     data = data,
   })
 
@@ -198,9 +225,15 @@ local function build_explorer_items(data)
     end
 
     table.insert(items, {
+      id = chapter.ID,
+      parent_id = sql_null_int_value(chapter.ParentID),
       text = chapter.Name,
+      visible = true,
+      rooted = false,
       path = chapter.Path,
+      file = chapter.Path,
       kind = "chapter",
+      dir = true,
       depth = node.Depth or 0,
       chapter = chapter,
       node = node,
@@ -214,10 +247,14 @@ local function build_explorer_items(data)
       local scene = scene_node.Scene
       if scene ~= nil then
         table.insert(items, {
+          id = scene.ID,
+          chapter_id = scene.ChapterID,
           text = scene.Name,
           file = scene.Path,
+          visible = true,
           path = scene.Path,
           kind = "scene",
+          dir = false,
           depth = scene_node.Depth or ((node.Depth or 0) + 1),
           scene = scene,
           node = scene_node,
@@ -226,11 +263,91 @@ local function build_explorer_items(data)
     end
   end
 
-  for _, chapter_node in ipairs(data.root_node.Chapters or {}) do
-    add_chapter_node(chapter_node)
+  if data.root_node ~= nil then
+    for _, chapter_node in ipairs(data.root_node.Chapters or {}) do
+      add_chapter_node(chapter_node)
+    end
   end
 
   return items
+end
+
+local function refresh_visible_items(target_items, source_items)
+  while #target_items > 0 do
+    table.remove(target_items)
+  end
+
+  for _, item in ipairs(source_items or {}) do
+    if item.visible then
+      table.insert(target_items, item)
+    end
+  end
+end
+
+local function collect_descendant_ids(base_items, chapter_id)
+  local id_list = {}
+  id_list[chapter_id] = true
+
+  local changed = true
+  while changed do
+    changed = false
+
+    for _, item in ipairs(base_items or {}) do
+      if item.kind == "chapter" and item.parent_id ~= nil and id_list[item.parent_id] and not id_list[item.id] then
+        id_list[item.id] = true
+        changed = true
+      end
+    end
+  end
+
+  return id_list
+end
+
+local function set_descendants_visible(base_items, chapter_item, visible)
+  local descendant_ids = collect_descendant_ids(base_items, chapter_item.id)
+
+  for _, item in ipairs(base_items or {}) do
+    if item.kind == "chapter" and item.id ~= chapter_item.id and descendant_ids[item.id] then
+      item.visible = visible
+    end
+
+    if item.kind == "scene" and item.chapter_id ~= nil and descendant_ids[item.chapter_id] then
+      item.visible = visible
+    end
+  end
+end
+
+local function render_item(item)
+  local indent = string.rep("  ", item.depth or 0)
+
+  if item.kind == "root" then
+    return {
+      { " ", "Directory" },
+      { item.text },
+    }
+  end
+
+  if item.kind == "chapter" then
+    local icon = item.rooted and " " or " "
+
+    return {
+      { indent },
+      { icon, "Directory" },
+      { item.text },
+    }
+  end
+
+  if item.kind == "scene" then
+    return {
+      { indent },
+      { "󰈙 ", "Normal" },
+      { item.text },
+    }
+  end
+
+  return {
+    { indent .. item.text },
+  }
 end
 
 function M.explorer()
@@ -242,12 +359,9 @@ function M.explorer()
     return
   end
 
-  local file = vim.api.nvim_buf_get_name(0)
-  file = vim.fn.fnamemodify(file, ":p")
-
-  local cwd = vim.fs.dirname(file)
-  if cwd == nil then
-    vim.notify("Could not determine current directory", vim.log.levels.ERROR)
+  local file, cwd, err = get_current_file_and_cwd()
+  if err ~= nil then
+    vim.notify(err, vim.log.levels.ERROR)
     return
   end
 
@@ -272,11 +386,14 @@ function M.explorer()
     return
   end
 
-  local items = build_explorer_items(data)
+  local base_items = build_explorer_items(data)
+  local items = {}
+  refresh_visible_items(items, base_items)
 
   draftcat_picker = Snacks.picker({
     title = "Draftcat",
     auto_close = false,
+    tree = true,
     layout = {
       preset = "sidebar",
       preview = false,
@@ -287,7 +404,7 @@ function M.explorer()
     actions = {
       draftcat_noop = {
         action = function()
-          -- intentionally do nothing for now
+          -- intentionally do nothing
         end,
       },
 
@@ -296,6 +413,28 @@ function M.explorer()
           if item == nil or item.path == nil then
             return
           end
+
+          if item.kind == "root" then
+            return
+          end
+
+          if item.kind == "chapter" then
+            item.rooted = not item.rooted
+
+            if item.rooted then
+              set_descendants_visible(base_items, item, false)
+            else
+              set_descendants_visible(base_items, item, true)
+            end
+
+            refresh_visible_items(items, base_items)
+
+            picker.list:set_target()
+            picker:find()
+
+            return
+          end
+
           if item.kind ~= "scene" then
             return
           end
@@ -308,43 +447,35 @@ function M.explorer()
           end
         end,
       },
+
+      draftcat_rename = {
+        action = function(_, item)
+          if item == nil or item.path == nil then
+            return
+          end
+
+          if item.kind == "root" then
+            vim.notify("Can't rename project currently", vim.log.levels.WARN)
+            return
+          end
+
+          local text = item.kind .. ":" .. tostring(item.id)
+          vim.notify(text)
+        end,
+      },
     },
     win = {
       list = {
         keys = {
           ["h"] = "draftcat_noop",
           ["l"] = "draftcat_confirm",
+          ["r"] = "draftcat_rename",
           ["<CR>"] = "draftcat_confirm",
         },
       },
     },
     focus = "list",
-    format = function(item)
-      local indent = string.rep("  ", item.depth or 0)
-      if item.kind == "root" then
-        return {
-          { " ", "Directory" },
-          { item.text },
-        }
-      end
-      if item.kind == "chapter" then
-        return {
-          { indent },
-          { " ", "Directory" },
-          { item.text },
-        }
-      end
-      if item.kind == "scene" then
-        return {
-          { indent },
-          { "󰈙 ", "Normal" },
-          { item.text },
-        }
-      end
-      return {
-        { indent .. item.text },
-      }
-    end,
+    format = render_item,
     items = items,
     on_close = function()
       draftcat_picker = nil
