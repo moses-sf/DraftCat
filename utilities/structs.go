@@ -26,6 +26,7 @@ type SceneMetaData struct {
 
 type ChapterMetaData struct {
 	ID         int
+	Name       string
 	ParentID   sql.NullInt64
 	PathToRoot string
 	Position   int

@@ -202,6 +202,7 @@ func TestGetRelativeRootPathFromChapterFolder(t *testing.T) {
 
 	chapter := ChapterMetaData{
 		ID:         1,
+		Name:       "Chapter 1",
 		ParentID:   sql.NullInt64{Valid: false},
 		PathToRoot: "..",
 		Position:   1,

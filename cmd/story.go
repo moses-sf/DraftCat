@@ -85,7 +85,8 @@ func CreateChapter(db *sql.DB, path, name, root string, parentID sql.NullInt64, 
 		Position: 1,
 	})
 	chapter := utilities.ChapterMetaData{
-		ID: chapID,
+		ID:   chapID,
+		Name: name,
 		ParentID: sql.NullInt64{
 			Valid: false,
 		},
@@ -378,6 +379,12 @@ var moveSceneCmd = &cobra.Command{
 	},
 }
 
+type MoveChapterOptions struct {
+	ID       int
+	ParentID sql.NullInt64
+	Position int
+}
+
 var moveFolderCmd = &cobra.Command{
 	Use:   "scene",
 	Short: "move a folder's position or to a different folder and position",
@@ -388,7 +395,18 @@ var moveFolderCmd = &cobra.Command{
 			fmt.Println(err)
 			return
 		}
-		fmt.Println("Moving Folder")
+		cwd, err := os.Getwd()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		chapter, err := utilities.LoadChapterToml(cwd)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Println("Moving Folder", chapter.ParentID)
 		if !cmd.Flags().Changed("position") || !cmd.Flags().Changed("currentFolderID") {
 			fmt.Println("Position or current Folder ID not defined")
 			return
