@@ -77,8 +77,8 @@ func CreateChapter(db *sql.DB, path, name, root string, parentID sql.NullInt64, 
 	if err != nil {
 		return err
 	}
-	scene := make([]utilities.SceneMetaData, 0)
-	scene = append(scene, utilities.SceneMetaData{
+	scene := make([]*utilities.SceneMetaData, 0)
+	scene = append(scene, &utilities.SceneMetaData{
 		ID:       sceneID,
 		Name:     "scene",
 		Path:     scenePath,
@@ -317,7 +317,7 @@ var addSceneCmd = &cobra.Command{
 			fmt.Println("Scene Id not updated")
 			return
 		}
-		chapter.Scenes = append(chapter.Scenes, utilities.SceneMetaData{
+		chapter.Scenes = append(chapter.Scenes, &utilities.SceneMetaData{
 			ID:       sceneID,
 			Name:     sceneName,
 			Path:     scenePath,
@@ -522,6 +522,23 @@ func RenameFolder(folderOpts *FolderRenameOptions) error {
 		return err
 	}
 	chapterToml.Name = folderOpts.Name
+	chapter.Name = folderOpts.Name
+	chapter.Path = newFolderPath
+	for _, scene := range chapterToml.Scenes {
+		scene.Path = filepath.Join(newFolderPath, fmt.Sprintf("%s%s", scene.Name, ".md"))
+		s := &databasehandler.Scene{
+			ID:   scene.ID,
+			Path: scene.Path,
+		}
+		err = databasehandler.UpdateScenePath(db, s)
+		if err != nil {
+			return err
+		}
+	}
+	err = databasehandler.UpdateChapterPath(db, chapter)
+	if err != nil {
+		return err
+	}
 	tomlPath := filepath.Join(newFolderPath, ".chapter.toml")
 	return utilities.EncodeToml(tomlPath, chapterToml)
 }

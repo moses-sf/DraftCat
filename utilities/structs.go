@@ -30,7 +30,7 @@ type ChapterMetaData struct {
 	ParentID   sql.NullInt64
 	PathToRoot string
 	Position   int
-	Scenes     []SceneMetaData
+	Scenes     []*SceneMetaData
 }
 type StoryType string
 
