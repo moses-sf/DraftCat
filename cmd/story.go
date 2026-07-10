@@ -507,6 +507,9 @@ func RenameFolder(folderOpts *FolderRenameOptions) error {
 	if err != nil {
 		return err
 	}
+	if chapter.Name == folderOpts.Name {
+		return fmt.Errorf("same name, aborting")
+	}
 	chapterToml, err := utilities.LoadChapterToml(chapter.Path)
 	if err != nil {
 		return err
@@ -599,7 +602,45 @@ func RenameScene(sceneOpts *SceneRenameOptions) error {
 			log.Println("Error closing DB:", closeErr)
 		}
 	}()
-	return nil
+	scene, err := databasehandler.GetScene(db, sceneOpts.SceneID)
+	if err != nil {
+		return err
+	}
+	if scene.Name == sceneOpts.Name {
+		return fmt.Errorf("same name, aborting")
+	}
+	chapterPath := filepath.Dir(scene.Path)
+	chapterTomlPath := filepath.Join(chapterPath, ".chapter.toml")
+	chapterToml, err := utilities.LoadChapterToml(chapterPath)
+	if err != nil {
+		return err
+	}
+	newPath := filepath.Join(chapterPath, fmt.Sprintf("%s%s", sceneOpts.Name, ".md"))
+	if utilities.FileExists(newPath) {
+		return fmt.Errorf("file exists %s", newPath)
+	}
+	err = os.Rename(scene.Path, newPath)
+	if err != nil {
+		return err
+	}
+	for _, scene := range chapterToml.Scenes {
+		if scene.ID == sceneOpts.SceneID {
+			scene.Name = sceneOpts.Name
+			scene.Path = newPath
+			err = databasehandler.UpdateScenePathAndName(db, &databasehandler.Scene{
+				ID:   sceneOpts.SceneID,
+				Name: scene.Name,
+				Path: newPath,
+			})
+			if err != nil {
+				return err
+			}
+			break
+		}
+	}
+
+	err = utilities.EncodeToml(chapterTomlPath, chapterToml)
+	return err
 }
 
 var renameSceneCmd = &cobra.Command{
@@ -673,6 +714,6 @@ func init() {
 	moveFolderCmd.Flags().IntP("position", "p", 0, "Set the position of the folder in the folder")
 	renameFolderCmd.Flags().IntP("folderID", "f", 0, "Folder ID to be changed")
 	renameFolderCmd.Flags().StringP("name", "n", "", "New name of the folder")
-	renameSceneCmd.Flags().IntP("sceneID", "f", 0, "Scene ID to be changed")
+	renameSceneCmd.Flags().IntP("sceneID", "s", 0, "Scene ID to be changed")
 	renameSceneCmd.Flags().StringP("name", "n", "", "New name of the folder")
 }

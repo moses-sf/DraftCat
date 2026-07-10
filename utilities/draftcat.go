@@ -24,9 +24,6 @@ func FindToml(tomlName string) (string, error) {
 func FindTomlPath(path, tomlName string) (string, error) {
 	_, err := os.Stat(filepath.Join(path, tomlName))
 	if err != nil {
-		if os.IsNotExist(err) {
-			fmt.Println("Attempting to find local file")
-		}
 		return "", err
 	} else {
 		return path, nil
