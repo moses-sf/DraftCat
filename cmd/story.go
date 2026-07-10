@@ -94,15 +94,8 @@ func CreateChapter(db *sql.DB, path, name, root string, parentID sql.NullInt64, 
 		Position:   newPosition,
 		Scenes:     scene,
 	}
-	buf := new(bytes.Buffer)
-	encoder := toml.NewEncoder(buf)
-	err = encoder.Encode(chapter)
-	if err != nil {
-		return err
-	}
-
-	err = os.WriteFile(path+"/.chapter.toml", buf.Bytes(), 0o644)
-	return err
+	tomlPath := filepath.Join(path, ".chapter.toml")
+	return utilities.EncodeToml(tomlPath, chapter)
 }
 
 func ChapterExists(db *sql.DB, chapterName string, parentID sql.NullInt64) (bool, error) {
@@ -259,7 +252,7 @@ var addSceneCmd = &cobra.Command{
 			fmt.Println("Error getting current directory")
 			return
 		}
-		if !utilities.FolderTomlExists(filepath.Join(cwd, ".chapter.toml")) {
+		if !utilities.FileExists(filepath.Join(cwd, ".chapter.toml")) {
 			fmt.Println("Incorrect folder, not created from Draftcat. Please make sure you're in a folder generated from DraftCat.")
 			return
 		}
@@ -484,15 +477,162 @@ var showCmd = &cobra.Command{
 	},
 }
 
+var renameCmd = &cobra.Command{
+	Use:   "rename",
+	Short: "Rename folders and files",
+	Long:  "Rename folders and files",
+}
+
+type FolderRenameOptions struct {
+	Name     string
+	FolderID int
+}
+
+func RenameFolder(folderOpts *FolderRenameOptions) error {
+	dbPath, err := utilities.GetDBPath()
+	if err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		fmt.Println("Could not access story DB, please run drafcat story repair")
+		return err
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			log.Println("Error closing DB:", closeErr)
+		}
+	}()
+	chapter, err := databasehandler.GetChapter(db, folderOpts.FolderID)
+	if err != nil {
+		return err
+	}
+	chapterToml, err := utilities.LoadChapterToml(chapter.Path)
+	if err != nil {
+		return err
+	}
+	upfolderPath := filepath.Join(chapter.Path, "..")
+	newFolderPath := filepath.Join(upfolderPath, folderOpts.Name)
+	newFolderExists := utilities.FolderExists(newFolderPath)
+	if newFolderExists {
+		return fmt.Errorf("folder exists use another name %s", newFolderPath)
+	}
+	err = os.Rename(chapter.Path, newFolderPath)
+	if err != nil {
+		return err
+	}
+	chapterToml.Name = folderOpts.Name
+	tomlPath := filepath.Join(newFolderPath, ".chapter.toml")
+	return utilities.EncodeToml(tomlPath, chapterToml)
+}
+
+var renameFolderCmd = &cobra.Command{
+	Use:   "folder",
+	Short: "Rename Folder",
+	Long:  "Rename Folder",
+	Run: func(cmd *cobra.Command, args []string) {
+		_, err := utilities.IsDraftcatProject()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		if !cmd.Flags().Changed("name") || !cmd.Flags().Changed("folderID") {
+			fmt.Println("Both name and id required")
+			return
+		}
+		name, err := cmd.Flags().GetString("name")
+		if err != nil {
+			fmt.Println("Error retrieving name")
+			return
+		}
+		id, err := cmd.Flags().GetInt("folderID")
+		if err != nil {
+			fmt.Println("Error retrieving Folder ID")
+			return
+		}
+		folderOpts := &FolderRenameOptions{
+			Name:     name,
+			FolderID: id,
+		}
+		err = RenameFolder(folderOpts)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	},
+}
+
+type SceneRenameOptions struct {
+	Name    string
+	SceneID int
+}
+
+func RenameScene(sceneOpts *SceneRenameOptions) error {
+	dbPath, err := utilities.GetDBPath()
+	if err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		fmt.Println("Could not access story DB, please run drafcat story repair")
+		return err
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			log.Println("Error closing DB:", closeErr)
+		}
+	}()
+	return nil
+}
+
+var renameSceneCmd = &cobra.Command{
+	Use:   "scene",
+	Short: "Rename Scene",
+	Long:  "Rename Scene",
+	Run: func(cmd *cobra.Command, args []string) {
+		_, err := utilities.IsDraftcatProject()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		if !cmd.Flags().Changed("name") || !cmd.Flags().Changed("sceneID") {
+			fmt.Println("Both name and id required")
+			return
+		}
+		name, err := cmd.Flags().GetString("name")
+		if err != nil {
+			fmt.Println("Error retrieving name")
+			return
+		}
+		id, err := cmd.Flags().GetInt("sceneID")
+		if err != nil {
+			fmt.Println("Error retrieving Scene ID")
+			return
+		}
+		sceneOpts := &SceneRenameOptions{
+			Name:    name,
+			SceneID: id,
+		}
+		err = RenameScene(sceneOpts)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(storyCmd)
 	storyCmd.AddCommand(addCmd)
 	storyCmd.AddCommand(moveCmd)
 	storyCmd.AddCommand(showCmd)
+	storyCmd.AddCommand(renameCmd)
 	addCmd.AddCommand(addFolderCmd)
 	addCmd.AddCommand(addSceneCmd)
 	moveCmd.AddCommand(moveSceneCmd)
 	moveCmd.AddCommand(moveFolderCmd)
+	renameCmd.AddCommand(renameFolderCmd)
+	renameCmd.AddCommand(renameSceneCmd)
 
 	// Here you will define your flags and configuration settings.
 
@@ -514,4 +654,8 @@ func init() {
 	moveFolderCmd.Flags().IntP("currentFolderID", "c", 0, "Current Folder ID to be moved")
 	moveFolderCmd.Flags().IntP("newFolderID", "n", 0, "Set the folder to move the folder to, 0 refers to the root folder")
 	moveFolderCmd.Flags().IntP("position", "p", 0, "Set the position of the folder in the folder")
+	renameFolderCmd.Flags().IntP("folderID", "f", 0, "Folder ID to be changed")
+	renameFolderCmd.Flags().StringP("name", "n", "", "New name of the folder")
+	renameSceneCmd.Flags().IntP("sceneID", "f", 0, "Scene ID to be changed")
+	renameSceneCmd.Flags().StringP("name", "n", "", "New name of the folder")
 }

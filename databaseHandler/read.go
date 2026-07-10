@@ -35,6 +35,23 @@ func GetMaxScenePosition(db *sql.DB, chapter int) (int, error) {
 	return maxPosition, nil
 }
 
+func GetChapter(db *sql.DB, id int) (*Chapter, error) {
+	chapter := &Chapter{}
+	res := db.QueryRow("SELECT id, parent_id, name, path, position, word_count FROM chapters WHERE id=?", id)
+	err := res.Scan(
+		&chapter.ID,
+		&chapter.ParentID,
+		&chapter.Name,
+		&chapter.Path,
+		&chapter.Position,
+		&chapter.WordCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return chapter, nil
+}
+
 func GetChapterNodes(db *sql.DB) ([]Chapter, error) {
 	chapters := make([]Chapter, 0)
 	res, err := db.Query(`SELECT id, parent_id, name, path, position, word_count FROM chapters ORDER BY parent_id`)
