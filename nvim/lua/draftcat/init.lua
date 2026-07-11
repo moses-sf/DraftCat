@@ -29,7 +29,6 @@ local function enable_text_wrapping()
   vim.opt_local.linebreak = true
   vim.opt_local.breakindent = true
   vim.opt_local.showbreak = "↳ "
-  vim.notify("Draftcat loaded and enabled")
 end
 
 local function get_current_file_and_cwd()
@@ -350,6 +349,26 @@ local function render_item(item)
   }
 end
 
+local function rename_open_buffer(old_path, new_path)
+  old_path = vim.fn.fnamemodify(old_path, ":p")
+  new_path = vim.fn.fnamemodify(new_path, ":p")
+
+  local buf = vim.fn.bufnr(old_path)
+
+  if buf == -1 or not vim.api.nvim_buf_is_valid(buf) then
+    return
+  end
+
+  local existing = vim.fn.bufnr(new_path)
+
+  if existing ~= -1 and existing ~= buf then
+    vim.notify("A buffer already exists for " .. new_path, vim.log.levels.ERROR)
+    return
+  end
+
+  vim.api.nvim_buf_set_name(buf, new_path)
+end
+
 function M.explorer()
   if draftcat_picker ~= nil then
     pcall(function()
@@ -449,7 +468,7 @@ function M.explorer()
       },
 
       draftcat_rename = {
-        action = function(_, item)
+        action = function(picker, item)
           if item == nil or item.path == nil then
             return
           end
@@ -459,8 +478,82 @@ function M.explorer()
             return
           end
 
-          local text = item.kind .. ":" .. tostring(item.id)
-          vim.notify(text)
+          vim.ui.input({
+            prompt = "New name:",
+          }, function(name)
+            if name == nil or name == "" then
+              vim.notify("Name Required")
+              return
+            end
+            name = vim.trim(name)
+            local kind
+            local idFlag
+            if item.kind == "chapter" then
+              kind = "folder"
+              idFlag = "-f"
+            elseif item.kind == "scene" then
+              kind = "scene"
+              idFlag = "-s"
+            end
+
+            local command = {
+              "draftcat",
+              "story",
+              "rename",
+              kind,
+              idFlag,
+              tostring(item.id),
+              "-n",
+              name,
+              "-j",
+            }
+
+            local message = run_json_command(command, cwd)
+            if message == nil then
+              return
+            end
+            if message.status then
+              if item.kind == "scene" then
+                local old_path = item.file
+                item.text = name
+                item.path = message.path
+                item.file = message.path
+                item.node.Scene.Name = name
+                item.node.Scene.Path = message.path
+                rename_open_buffer(old_path, item.file)
+              end
+              if item.kind == "chapter" then
+                item.text = name
+                item.path = message.path
+                item.file = message.path
+                item.node.Chapter.Name = name
+                item.node.Chapter.Path = message.path
+                for _, n in ipairs(message.path) do
+                  for _, i in ipairs(items) do
+                    if i.kind == n.type and i.id == n.id then
+                      if i.kind == "chapter" then
+                        i.path = n.new_path
+                        i.file = n.new_path
+                        i.node.Chapter.Path = n.new_path
+                      elseif i.kind == "scene" then
+                        local old_path = i.path
+                        i.path = n.new_path
+                        i.file = n.new_path
+                        i.node.Scene.Path = n.new_path
+                        rename_open_buffer(old_path, i.path)
+                      end
+                    end
+                  end
+                end
+              end
+
+              vim.notify(item.kind .. " successfully renamed")
+              picker.list:set_target()
+              picker:find()
+            else
+              vim.notify(vim.inspect(message.error))
+            end
+          end)
         end,
       },
     },

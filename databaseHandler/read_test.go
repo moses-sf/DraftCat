@@ -262,3 +262,28 @@ func TestMapNodesBuildsChapterSceneTree(t *testing.T) {
 		t.Fatalf("expected scene depth 2, got %d", chapterNode.Scenes[0].Depth)
 	}
 }
+
+func TestChapterSelectWithParent(t *testing.T) {
+	db := basicDBSetup(t)
+	chapters, err := GetChaptersWithParent(db, sql.NullInt64{Valid: false})
+	if err != nil {
+		t.Error(err)
+	}
+	if len(chapters) != 2 {
+		t.Fatalf("Incorrect number of chapters: %d", len(chapters))
+	}
+	chapters, err = GetChaptersWithParent(db, sql.NullInt64{Valid: true, Int64: 1})
+	if err != nil {
+		t.Error(err)
+	}
+	if len(chapters) != 2 {
+		t.Fatalf("Incorrect number of chapters: %d", len(chapters))
+	}
+	chapters, err = GetChaptersWithParent(db, sql.NullInt64{Valid: true, Int64: 2})
+	if err != nil {
+		t.Error(err)
+	}
+	if len(chapters) != 1 {
+		t.Fatalf("Incorrect number of chapters: %d", len(chapters))
+	}
+}

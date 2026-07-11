@@ -52,6 +52,45 @@ func GetChapter(db *sql.DB, id int) (*Chapter, error) {
 	return chapter, nil
 }
 
+func GetChaptersWithParent(db *sql.DB, parentID sql.NullInt64) ([]*Chapter, error) {
+	chapters := make([]*Chapter, 0)
+	var res *sql.Rows
+	var err error
+	if parentID.Valid {
+		res, err = db.Query(`SELECT id, parent_id, name, path, position, word_count FROM chapters WHERE parent_id=?`, parentID.Int64)
+	} else {
+		res, err = db.Query(`SELECT id, parent_id, name, path, position, word_count FROM chapters WHERE parent_id IS NULL`)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := res.Close(); closeErr != nil {
+			fmt.Println("error closing chapter rows:", closeErr)
+		}
+	}()
+	for res.Next() {
+		chapter := &Chapter{}
+		err = res.Scan(
+			&chapter.ID,
+			&chapter.ParentID,
+			&chapter.Name,
+			&chapter.Path,
+			&chapter.Position,
+			&chapter.WordCount,
+		)
+		if err != nil {
+			return nil, err
+		}
+		chapters = append(chapters, chapter)
+	}
+
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+	return chapters, nil
+}
+
 func GetChapterNodes(db *sql.DB) ([]Chapter, error) {
 	chapters := make([]Chapter, 0)
 	res, err := db.Query(`SELECT id, parent_id, name, path, position, word_count FROM chapters ORDER BY parent_id`)

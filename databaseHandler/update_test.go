@@ -6,7 +6,7 @@ package databasehandler
 
 import "testing"
 
-func TestFolderRename(t *testing.T) {
+func TestChapterPathAndNameChange(t *testing.T) {
 	db := basicDBSetup(t)
 	err := UpdateChapterPathAndName(db, &Chapter{
 		ID:   1,
@@ -24,6 +24,27 @@ func TestFolderRename(t *testing.T) {
 
 	if chapter.Name != "TestUpdate" {
 		t.Fatal("Failed to update Name")
+	}
+
+	if chapter.Path != "TestUpdate/" {
+		t.Fatal("Failed to update Path")
+	}
+}
+
+func TestChapterPathChange(t *testing.T) {
+	db := basicDBSetup(t)
+	err := UpdateChapterPath(db, &Chapter{
+		ID:   1,
+		Name: "TestUpdate",
+		Path: "TestUpdate/",
+	})
+	if err != nil {
+		t.Fatal("Failed to update db")
+	}
+
+	chapter, err := GetChapter(db, 1)
+	if err != nil {
+		t.Fatal("Couldn't retrieve chapter")
 	}
 
 	if chapter.Path != "TestUpdate/" {
