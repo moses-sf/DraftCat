@@ -86,11 +86,9 @@ func CreateChapter(db *sql.DB, path, name, root string, parentID sql.NullInt64, 
 		Position: 1,
 	})
 	chapter := utilities.ChapterMetaData{
-		ID:   chapID,
-		Name: name,
-		ParentID: sql.NullInt64{
-			Valid: false,
-		},
+		ID:         chapID,
+		Name:       name,
+		ParentID:   parentID,
 		PathToRoot: root,
 		Position:   newPosition,
 		Scenes:     scene,
@@ -205,6 +203,7 @@ var addFolderCmd = &cobra.Command{
 				Valid: true,
 				Int64: int64(chapter.ID),
 			}
+			fmt.Println(parentID)
 			dbPath = filepath.Join(cwd, chapter.PathToRoot, ".story.db")
 		}
 		db, err := sql.Open("sqlite", dbPath)
@@ -504,6 +503,7 @@ func ChapterUpdateFromRoot(db *sql.DB, rootPath string, id sql.NullInt64) ([]*Re
 		if err != nil {
 			return nil, err
 		}
+		tomlPath := filepath.Join(newFolderPath, ".chapter.toml")
 		chapter.Path = newFolderPath
 		err = databasehandler.UpdateChapterPath(db, chapter)
 		if err != nil {
@@ -529,6 +529,10 @@ func ChapterUpdateFromRoot(db *sql.DB, rootPath string, id sql.NullInt64) ([]*Re
 				ID:      scene.ID,
 				NewPath: scene.Path,
 			})
+		}
+		err = utilities.EncodeToml(tomlPath, chapterToml)
+		if err != nil {
+			return nil, err
 		}
 		treeOutcomes, err := ChapterUpdateFromRoot(db, newFolderPath, sql.NullInt64{Valid: true, Int64: int64(chapter.ID)})
 		if err != nil {
