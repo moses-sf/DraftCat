@@ -8,14 +8,8 @@ if ok then
   })
 end
 
-vim.keymap.set("n", "<leader>rs", function()
-  require("draftcat").add_scene()
-end, {
-  desc = "Draftcat: Add Scene",
-})
+local explorer = require("draftcat.explorer")
 
-vim.keymap.set("n", "<leader>re", function()
-  require("draftcat").explorer()
-end, {
+vim.keymap.set("n", "<leader>re", explorer.open, {
   desc = "Draftcat: Explorer",
 })

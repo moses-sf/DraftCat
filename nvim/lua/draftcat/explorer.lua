@@ -386,7 +386,7 @@ function M.open()
         end,
       },
 
-      draftcat_confirm = {
+      confirm = {
         action = function(picker, item)
           if item == nil or item.path == nil then
             return
@@ -421,7 +421,7 @@ function M.open()
         end,
       },
 
-      draftcat_reposition = {
+      reposition = {
         action = function(picker, item)
           if item == nil then
             return
@@ -493,7 +493,7 @@ function M.open()
         end,
       },
 
-      draftcat_add = {
+      add = {
         action = function(picker, item)
           if item == nil then
             return
@@ -571,7 +571,7 @@ function M.open()
         end,
       },
 
-      draftcat_reroot = {
+      reroot = {
         action = function(picker, item)
           if item == nil then
             return
@@ -610,15 +610,40 @@ function M.open()
               return
             end
 
-            -- Add the actual Draftcat reroot command here.
-            -- Your original code only rebuilt the existing data.
+            local kind, id_flag = get_kind_and_flag(item)
 
+            local command = {
+              "draftcat",
+              "story",
+              "rename",
+              kind,
+              id_flag,
+              tostring(item.id),
+              "-i",
+              tostring(id),
+              "-j",
+            }
+            local result = process.run_json(command, cwd)
+
+            if result == nil then
+              return
+            end
+
+            if not result.status then
+              vim.notify(vim.inspect(result.error))
+              return
+            end
+            local selected = {
+              id = item.id,
+              kind = item.kind,
+            }
+            data, base_items = refresh_explorer_data(picker, cwd, base_items, items, selected)
             reset_picker_normal(picker, item)
           end)
         end,
       },
 
-      draftcat_rename = {
+      rename = {
         action = function(picker, item)
           if item == nil or item.path == nil then
             return
@@ -692,13 +717,13 @@ function M.open()
     win = {
       list = {
         keys = {
-          ["h"] = "draftcat_noop",
-          ["l"] = "draftcat_confirm",
-          ["a"] = "draftcat_add",
-          ["r"] = "draftcat_rename",
-          ["p"] = "draftcat_reposition",
-          ["t"] = "draftcat_reroot",
-          ["<CR>"] = "draftcat_confirm",
+          ["h"] = "noop",
+          ["l"] = "confirm",
+          ["a"] = "add",
+          ["r"] = "rename",
+          ["p"] = "reposition",
+          ["t"] = "reroot",
+          ["<CR>"] = "confirm",
         },
       },
     },
