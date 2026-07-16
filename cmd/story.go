@@ -191,6 +191,11 @@ var addFolderCmd = &cobra.Command{
 			}
 			position = pos
 		}
+		j, err := cmd.Flags().GetBool("json")
+		if err != nil {
+			fmt.Println("Failed to load json")
+			return
+		}
 		dbPath := filepath.Join(cwd, ".story.db")
 		if parent {
 			chapter, err := utilities.LoadChapterToml(cwd)
@@ -203,7 +208,6 @@ var addFolderCmd = &cobra.Command{
 				Valid: true,
 				Int64: int64(chapter.ID),
 			}
-			fmt.Println(parentID)
 			dbPath = filepath.Join(cwd, chapter.PathToRoot, ".story.db")
 		}
 		db, err := sql.Open("sqlite", dbPath)
@@ -231,8 +235,15 @@ var addFolderCmd = &cobra.Command{
 		}
 		err = CreateChapter(db, filepath.Join(cwd, chapterName), chapterName, root, parentID, position)
 		if err != nil {
+			if j {
+				fmt.Printf(`{"status":false, "error":"%s"}`, err)
+				return
+			}
 			fmt.Println("Chapter Creation Failed", err)
 			return
+		}
+		if j {
+			fmt.Printf(`{"status":true, "error":""}`)
 		}
 	},
 }
@@ -259,6 +270,11 @@ var addSceneCmd = &cobra.Command{
 		chapter, err := utilities.LoadChapterToml(cwd)
 		if err != nil {
 			fmt.Println("Error in loading metadata")
+			return
+		}
+		j, err := cmd.Flags().GetBool("json")
+		if err != nil {
+			fmt.Println("Failed to load json")
 			return
 		}
 		db, err := sql.Open("sqlite", filepath.Join(cwd, chapter.PathToRoot, ".story.db"))
@@ -334,8 +350,15 @@ var addSceneCmd = &cobra.Command{
 
 		err = os.WriteFile(cwd+"/.chapter.toml", buf.Bytes(), 0o644)
 		if err != nil {
-			fmt.Println("Error writing metadata")
+			if j {
+				fmt.Printf(`{"state":false, "error":"%s"}`, err)
+				return
+			}
+			fmt.Println("Chapter Creation Failed", err)
 			return
+		}
+		if j {
+			fmt.Printf(`{"status":true, "error":""}`)
 		}
 	},
 }
@@ -776,6 +799,11 @@ func RenameSceneCommand(cmd *cobra.Command) (string, error) {
 	return RenameScene(sceneOpts)
 }
 
+type JSONStatus struct {
+	Status bool   `json:"status"`
+	Error  string `json:"error"`
+}
+
 var renameSceneCmd = &cobra.Command{
 	Use:   "scene",
 	Short: "Rename Scene",
@@ -798,18 +826,93 @@ var renameSceneCmd = &cobra.Command{
 	},
 }
 
+var repositionCmd = &cobra.Command{
+	Use:   "reposition",
+	Short: "reposition folders and scenes",
+	Long:  "reposition folders and scenes",
+}
+
+var repositionFolderCmd = &cobra.Command{
+	Use:   "folder",
+	Short: "reposition folders",
+	Long:  "reposition folders",
+	Run: func(cmd *cobra.Command, args []string) {
+		j, err := cmd.Flags().GetBool("json")
+		if err != nil {
+			state, err := json.Marshal(JSONStatus{
+				Status: false,
+				Error:  fmt.Sprintf("%s", err),
+			})
+			if err != nil {
+				log.Fatalf(`{"status":false, "error":"%s"}`, err)
+				return
+			}
+			log.Fatal(string(state))
+			return
+		}
+		if j {
+			state, err := json.Marshal(JSONStatus{
+				Status: true,
+			})
+			if err != nil {
+				log.Fatalf(`{"status":false, "error":"%s"}`, err)
+				return
+			}
+			fmt.Println(string(state))
+		} else {
+			fmt.Println("Other")
+		}
+	},
+}
+
+var repositionSceneCmd = &cobra.Command{
+	Use:   "scene",
+	Short: "reposition scene",
+	Long:  "reposition scenes",
+	Run: func(cmd *cobra.Command, args []string) {
+		j, err := cmd.Flags().GetBool("json")
+		if err != nil {
+			state, err := json.Marshal(JSONStatus{
+				Status: false,
+				Error:  fmt.Sprintf("%s", err),
+			})
+			if err != nil {
+				log.Fatalf(`{"status":false, "error":"%s"}`, err)
+				return
+			}
+			log.Fatal(string(state))
+			return
+		}
+		if j {
+			state, err := json.Marshal(JSONStatus{
+				Status: true,
+			})
+			if err != nil {
+				log.Fatalf(`{"status":false, "error":"%s"}`, err)
+				return
+			}
+			fmt.Println(string(state))
+		} else {
+			fmt.Println("Other")
+		}
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(storyCmd)
 	storyCmd.AddCommand(addCmd)
 	storyCmd.AddCommand(moveCmd)
 	storyCmd.AddCommand(showCmd)
 	storyCmd.AddCommand(renameCmd)
+	storyCmd.AddCommand(repositionCmd)
 	addCmd.AddCommand(addFolderCmd)
 	addCmd.AddCommand(addSceneCmd)
 	moveCmd.AddCommand(moveSceneCmd)
 	moveCmd.AddCommand(moveFolderCmd)
 	renameCmd.AddCommand(renameFolderCmd)
 	renameCmd.AddCommand(renameSceneCmd)
+	repositionCmd.AddCommand(repositionFolderCmd)
+	repositionCmd.AddCommand(repositionSceneCmd)
 
 	// Here you will define your flags and configuration settings.
 
@@ -823,8 +926,10 @@ func init() {
 	showCmd.Flags().BoolP("json", "j", false, "Output json to stdout")
 	addFolderCmd.Flags().StringP("name", "n", "", "Set the name of the folder")
 	addFolderCmd.Flags().IntP("position", "p", 0, "Set the position of the folder in the project")
+	addFolderCmd.Flags().BoolP("json", "j", false, "Json ouput")
 	addSceneCmd.Flags().StringP("name", "n", "", "Set the name of the scene")
 	addSceneCmd.Flags().IntP("position", "p", 0, "Set the position of the scene in the chapter")
+	addSceneCmd.Flags().BoolP("json", "j", false, "Json ouput")
 	moveSceneCmd.Flags().IntP("folderID", "f", 0, "Set the folder to move the scene to, 0 refers to the root folder")
 	moveSceneCmd.Flags().IntP("sceneID", "s", 0, "Scene ID to be moved")
 	moveSceneCmd.Flags().IntP("position", "p", 0, "Set the position of the scene in the folder")
@@ -837,4 +942,10 @@ func init() {
 	renameSceneCmd.Flags().IntP("sceneID", "s", 0, "Scene ID to be changed")
 	renameSceneCmd.Flags().StringP("name", "n", "", "New name of the folder")
 	renameSceneCmd.Flags().BoolP("json", "j", false, "Json ouput")
+	repositionSceneCmd.Flags().IntP("sceneID", "s", 0, "Scene ID to be changed")
+	repositionSceneCmd.Flags().IntP("position", "p", 0, "New Position of the scene to be moved")
+	repositionSceneCmd.Flags().BoolP("json", "j", false, "Json ouput")
+	repositionFolderCmd.Flags().IntP("folderID", "f", 0, "Folder ID to be changed")
+	repositionFolderCmd.Flags().IntP("position", "p", 0, "New Position of the folder to be moved")
+	repositionFolderCmd.Flags().BoolP("json", "j", false, "Json ouput")
 }
