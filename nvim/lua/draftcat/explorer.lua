@@ -472,7 +472,7 @@ function M.open()
             local command = {
               "draftcat",
               "story",
-              "rename",
+              "reposition",
               kind,
               id_flag,
               tostring(item.id),
@@ -717,7 +717,7 @@ function M.open()
     win = {
       list = {
         keys = {
-          ["h"] = "noop",
+          ["h"] = "draftcat_noop",
           ["l"] = "confirm",
           ["a"] = "add",
           ["r"] = "rename",

@@ -269,14 +269,14 @@ func TestChapterSelectWithParent(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if len(chapters) != 2 {
+	if len(chapters) != 3 {
 		t.Fatalf("Incorrect number of chapters: %d", len(chapters))
 	}
 	chapters, err = GetChaptersWithParent(db, sql.NullInt64{Valid: true, Int64: 1})
 	if err != nil {
 		t.Error(err)
 	}
-	if len(chapters) != 2 {
+	if len(chapters) != 3 {
 		t.Fatalf("Incorrect number of chapters: %d", len(chapters))
 	}
 	chapters, err = GetChaptersWithParent(db, sql.NullInt64{Valid: true, Int64: 2})

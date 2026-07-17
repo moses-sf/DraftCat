@@ -141,6 +141,38 @@ func GetScene(db *sql.DB, id int) (*Scene, error) {
 	return scene, nil
 }
 
+func GetScenesOfChapter(db *sql.DB, chapterID int) ([]Scene, error) {
+	scenes := make([]Scene, 0)
+	res, err := db.Query(`SELECT id, chapter_id, name, path, position, word_count FROM scenes WHERE chapter_id = ?`, chapterID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := res.Close(); closeErr != nil {
+			fmt.Println("error closing chapter rows:", closeErr)
+		}
+	}()
+	for res.Next() {
+		scene := Scene{}
+		err = res.Scan(
+			&scene.ID,
+			&scene.ChapterID,
+			&scene.Name,
+			&scene.Path,
+			&scene.Position,
+			&scene.WordCount,
+		)
+		if err != nil {
+			return nil, err
+		}
+		scenes = append(scenes, scene)
+	}
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+	return scenes, nil
+}
+
 func GetSceneNodes(db *sql.DB) ([]Scene, error) {
 	scenes := make([]Scene, 0)
 	res, err := db.Query(`SELECT id, chapter_id, name, path, position, word_count FROM scenes ORDER BY chapter_id, position`)

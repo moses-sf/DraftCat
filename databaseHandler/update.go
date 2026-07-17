@@ -4,7 +4,10 @@ Copyright © 2026 Moses Sukumaran moses@solframe.in
 */
 package databasehandler
 
-import "database/sql"
+import (
+	"database/sql"
+	"errors"
+)
 
 func UpdateChapterPathAndName(db *sql.DB, chapter *Chapter) error {
 	_, err := db.Exec(`UPDATE chapters
@@ -21,6 +24,61 @@ func UpdateChapterPath(db *sql.DB, chapter *Chapter) error {
 	return err
 }
 
+func UpdateChapterPosition(db *sql.DB, chapterID, oldPosition, newPosition int, rootID sql.NullInt64) error {
+	if oldPosition == newPosition {
+		return errors.New("old and new position cannot be equal")
+	}
+	if oldPosition < newPosition {
+		return UpdateChapterPositionIncrease(db, chapterID, oldPosition, newPosition, rootID)
+	} else {
+		return UpdateChapterPositionDecrease(db, chapterID, oldPosition, newPosition, rootID)
+	}
+}
+
+func UpdateChapterPositionIncrease(db *sql.DB, chapterID, oldPosition, newPosition int, rootID sql.NullInt64) error {
+	if rootID.Valid {
+		_, err := db.Exec(`UPDATE chapters
+		SET position = CASE
+			WHEN id = ? THEN ?
+			WHEN position > ? AND position <= ? THEN position - 1
+			ELSE position
+		END
+		WHERE parent_id = ? AND (id = ? OR (position > ? AND position <= ?))`, chapterID, newPosition, oldPosition, newPosition, rootID.Int64, chapterID, oldPosition, newPosition)
+		return err
+	} else {
+		_, err := db.Exec(`UPDATE chapters
+		SET position = CASE
+			WHEN id = ? THEN ?
+			WHEN position > ? AND position <= ? THEN position - 1
+			ELSE position
+		END
+		WHERE parent_id IS NULL AND (id = ? OR (position > ? AND position <= ?))`, chapterID, newPosition, oldPosition, newPosition, chapterID, oldPosition, newPosition)
+		return err
+	}
+}
+
+func UpdateChapterPositionDecrease(db *sql.DB, chapterID, oldPosition, newPosition int, rootID sql.NullInt64) error {
+	if rootID.Valid {
+		_, err := db.Exec(`UPDATE chapters
+		SET position = CASE
+			WHEN id = ? THEN ?
+			WHEN position < ? AND position >= ? THEN position + 1
+			ELSE position
+		END
+		WHERE parent_id = ? AND (id = ? OR (position < ? AND position >= ?))`, chapterID, newPosition, oldPosition, newPosition, rootID.Int64, chapterID, oldPosition, newPosition)
+		return err
+	} else {
+		_, err := db.Exec(`UPDATE chapters
+		SET position = CASE
+			WHEN id = ? THEN ?
+			WHEN position < ? AND position >= ? THEN position + 1
+			ELSE position
+		END
+		WHERE parent_id IS NULL AND (id = ? OR (position < ? AND position >= ?))`, chapterID, newPosition, oldPosition, newPosition, chapterID, oldPosition, newPosition)
+		return err
+	}
+}
+
 func UpdateScenePath(db *sql.DB, scene *Scene) error {
 	_, err := db.Exec(`UPDATE scenes
 		SET path = ?
@@ -34,4 +92,26 @@ func UpdateScenePathAndName(db *sql.DB, scene *Scene) error {
 		name = ?
 		WHERE id = ?`, scene.Path, scene.Name, scene.ID)
 	return err
+}
+
+func UpdateScenePosition(db *sql.DB, sceneID, oldPosition, newPosition, chapterID int) error {
+	if newPosition > oldPosition {
+		_, err := db.Exec(`UPDATE scenes
+		SET position = CASE 
+			WHEN id = ? THEN ?
+			WHEN position > ? AND position <= ? THEN position - 1
+			ELSE position
+		END
+		WHERE chapter_id = ? AND (id = ? OR (position > ? AND position <= ?))`, sceneID, newPosition, oldPosition, newPosition, chapterID, sceneID, oldPosition, newPosition)
+		return err
+	} else {
+		_, err := db.Exec(`UPDATE scenes
+		SET position = CASE 
+			WHEN id = ? THEN ?
+			WHEN position < ? AND position >= ? THEN position + 1
+			ELSE position
+		END
+		WHERE chapter_id =? AND (id = ? OR (position < ? AND position >= ?))`, sceneID, newPosition, oldPosition, newPosition, chapterID, sceneID, oldPosition, newPosition)
+		return err
+	}
 }
