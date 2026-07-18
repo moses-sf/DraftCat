@@ -326,13 +326,13 @@ var renameSceneCmd = &cobra.Command{
 	Short: "Rename Scene",
 	Long:  "Rename Scene",
 	Run: func(cmd *cobra.Command, args []string) {
-		json, err := cmd.Flags().GetBool("json")
+		j, err := cmd.Flags().GetBool("json")
 		if err != nil {
 			log.Fatalf(`{"status":false, "error":"%s"}`, err)
 		}
 		path, err := RenameSceneCommand(cmd)
 		if err != nil {
-			if json {
+			if j {
 				log.Fatalf(`{"status":false, "error":"%s"}`, err)
 			} else {
 				log.Fatal(err)

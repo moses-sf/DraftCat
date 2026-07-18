@@ -216,6 +216,9 @@ local function refresh_and_reselect(picker, selected)
   picker:find({
     on_done = function()
       for current, idx in picker:iter() do
+        if selected == nil then
+          return
+        end
         if current.kind == selected.kind and current.id == selected.id then
           picker.list:view(idx)
           return
@@ -322,6 +325,18 @@ local function get_kind_and_flag(item)
   return nil, nil
 end
 
+local function close_deleted_buffers(paths)
+  for _, path in ipairs(paths or {}) do
+    local absolute_path = vim.fn.fnamemodify(path, ":p")
+    local buf = vim.fn.bufnr(absolute_path)
+    if buf ~= -1 and vim.api.nvim_buf_is_valid(buf) then
+      vim.api.nvim_buf_delete(buf, {
+        force = true,
+      })
+    end
+  end
+end
+
 function M.open()
   if state.picker ~= nil then
     pcall(function()
@@ -426,6 +441,9 @@ function M.open()
           if item == nil then
             return
           end
+          if not util.save_all_buffers() then
+            return
+          end
 
           if item.kind == "root" then
             vim.notify("Can't reposition story folder")
@@ -496,6 +514,9 @@ function M.open()
       add = {
         action = function(picker, item)
           if item == nil then
+            return
+          end
+          if not util.save_all_buffers() then
             return
           end
 
@@ -576,6 +597,9 @@ function M.open()
           if item == nil then
             return
           end
+          if not util.save_all_buffers() then
+            return
+          end
 
           if item.kind == "root" then
             vim.notify("Cannot reroot story folder")
@@ -642,10 +666,55 @@ function M.open()
           end)
         end,
       },
+      delete = {
+        action = function(picker, item)
+          if item == nil or item.path == nil then
+            return
+          end
+          if item.kind == "root" then
+            vim.notify("Can't delete project root- Hey what are you trying to do?")
+            return
+          end
+          if not util.save_all_buffers() then
+            return
+          end
 
+          local kind, id_flag = get_kind_and_flag(item)
+
+          if kind == nil then
+            return
+          end
+
+          local command = {
+            "draftcat",
+            "story",
+            "delete",
+            id_flag,
+            "-i",
+            tostring(item.id),
+            "-j",
+          }
+          local result = process.run_json(command, cwd)
+
+          if result == nil then
+            return
+          end
+
+          if not result.status then
+            vim.notify(vim.inspect(result.error))
+            return
+          end
+          close_deleted_buffers(result.deleted_paths)
+
+          data, base_items = refresh_explorer_data(picker, cwd, base_items, items, selected)
+        end,
+      },
       rename = {
         action = function(picker, item)
           if item == nil or item.path == nil then
+            return
+          end
+          if not util.save_all_buffers() then
             return
           end
 
@@ -719,6 +788,7 @@ function M.open()
         keys = {
           ["h"] = "draftcat_noop",
           ["l"] = "confirm",
+          ["d"] = "delete",
           ["a"] = "add",
           ["r"] = "rename",
           ["p"] = "reposition",

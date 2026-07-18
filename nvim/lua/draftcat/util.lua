@@ -1,5 +1,14 @@
 local M = {}
+function M.save_all_buffers()
+  local ok, err = pcall(vim.cmd.wall)
 
+  if not ok then
+    vim.notify("Could not save all buffers: " .. tostring(err), vim.log.levels.ERROR)
+    return false
+  end
+
+  return true
+end
 function M.sql_null_int_value(value)
   if value == nil then
     return nil
