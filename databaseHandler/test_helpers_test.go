@@ -29,6 +29,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 		CREATE TABLE chapters (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			parent_id INTEGER,
+  		compile INTEGER NOT NULL DEFAULT 0,
 			name TEXT NOT NULL,
 			path TEXT NOT NULL,
 			position INTEGER NOT NULL,
@@ -39,6 +40,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 		CREATE TABLE scenes (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			chapter_id INTEGER NOT NULL,
+  		compile INTEGER NOT NULL DEFAULT 0,
 			name TEXT NOT NULL,
 			path TEXT NOT NULL,
 			position INTEGER NOT NULL,

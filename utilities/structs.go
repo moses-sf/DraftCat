@@ -21,6 +21,7 @@ import (
 type SceneMetaData struct {
 	ID       int
 	Name     string
+	Compile  bool
 	Path     string
 	Position int
 }
@@ -28,6 +29,7 @@ type SceneMetaData struct {
 type ChapterMetaData struct {
 	ID         int
 	Name       string
+	Compile    bool
 	ParentID   sql.NullInt64
 	PathToRoot string
 	Position   int

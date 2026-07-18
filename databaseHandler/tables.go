@@ -13,6 +13,7 @@ type Chapter struct {
 	ID        int
 	ParentID  sql.NullInt64
 	Name      string
+	Compile   bool
 	Path      string
 	Position  int
 	WordCount int
@@ -21,6 +22,7 @@ type Chapter struct {
 type Scene struct {
 	ID        int
 	ChapterID int
+	Compile   bool
 	Name      string
 	Path      string
 	Position  int

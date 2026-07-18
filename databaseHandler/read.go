@@ -37,11 +37,12 @@ func GetMaxScenePosition(db *sql.DB, chapter int) (int, error) {
 
 func GetChapter(db *sql.DB, id int) (*Chapter, error) {
 	chapter := &Chapter{}
-	res := db.QueryRow("SELECT id, parent_id, name, path, position, word_count FROM chapters WHERE id=?", id)
+	res := db.QueryRow("SELECT id, parent_id, name, compile, path, position, word_count FROM chapters WHERE id=?", id)
 	err := res.Scan(
 		&chapter.ID,
 		&chapter.ParentID,
 		&chapter.Name,
+		&chapter.Compile,
 		&chapter.Path,
 		&chapter.Position,
 		&chapter.WordCount,
@@ -57,9 +58,9 @@ func GetChaptersWithParent(db *sql.DB, parentID sql.NullInt64) ([]*Chapter, erro
 	var res *sql.Rows
 	var err error
 	if parentID.Valid {
-		res, err = db.Query(`SELECT id, parent_id, name, path, position, word_count FROM chapters WHERE parent_id=?`, parentID.Int64)
+		res, err = db.Query(`SELECT id, parent_id, name, compile, path, position, word_count FROM chapters WHERE parent_id=?`, parentID.Int64)
 	} else {
-		res, err = db.Query(`SELECT id, parent_id, name, path, position, word_count FROM chapters WHERE parent_id IS NULL`)
+		res, err = db.Query(`SELECT id, parent_id, name, compile, path, position, word_count FROM chapters WHERE parent_id IS NULL`)
 	}
 	if err != nil {
 		return nil, err
@@ -75,6 +76,7 @@ func GetChaptersWithParent(db *sql.DB, parentID sql.NullInt64) ([]*Chapter, erro
 			&chapter.ID,
 			&chapter.ParentID,
 			&chapter.Name,
+			&chapter.Compile,
 			&chapter.Path,
 			&chapter.Position,
 			&chapter.WordCount,
@@ -93,7 +95,7 @@ func GetChaptersWithParent(db *sql.DB, parentID sql.NullInt64) ([]*Chapter, erro
 
 func GetChapterNodes(db *sql.DB) ([]Chapter, error) {
 	chapters := make([]Chapter, 0)
-	res, err := db.Query(`SELECT id, parent_id, name, path, position, word_count FROM chapters ORDER BY parent_id, position`)
+	res, err := db.Query(`SELECT id, parent_id, name, compile, path, position, word_count FROM chapters ORDER BY parent_id, position`)
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +110,7 @@ func GetChapterNodes(db *sql.DB) ([]Chapter, error) {
 			&chapter.ID,
 			&chapter.ParentID,
 			&chapter.Name,
+			&chapter.Compile,
 			&chapter.Path,
 			&chapter.Position,
 			&chapter.WordCount,
@@ -126,11 +129,12 @@ func GetChapterNodes(db *sql.DB) ([]Chapter, error) {
 
 func GetScene(db *sql.DB, id int) (*Scene, error) {
 	scene := &Scene{}
-	res := db.QueryRow("SELECT id, chapter_id, name, path, position, word_count FROM scenes WHERE id=?", id)
+	res := db.QueryRow("SELECT id, chapter_id, name, compile, path, position, word_count FROM scenes WHERE id=?", id)
 	err := res.Scan(
 		&scene.ID,
 		&scene.ChapterID,
 		&scene.Name,
+		&scene.Compile,
 		&scene.Path,
 		&scene.Position,
 		&scene.WordCount,
@@ -143,7 +147,7 @@ func GetScene(db *sql.DB, id int) (*Scene, error) {
 
 func GetScenesOfChapter(db *sql.DB, chapterID int) ([]Scene, error) {
 	scenes := make([]Scene, 0)
-	res, err := db.Query(`SELECT id, chapter_id, name, path, position, word_count FROM scenes WHERE chapter_id = ?`, chapterID)
+	res, err := db.Query(`SELECT id, chapter_id, name, compile, path, position, word_count FROM scenes WHERE chapter_id = ?`, chapterID)
 	if err != nil {
 		return nil, err
 	}
@@ -158,6 +162,7 @@ func GetScenesOfChapter(db *sql.DB, chapterID int) ([]Scene, error) {
 			&scene.ID,
 			&scene.ChapterID,
 			&scene.Name,
+			&scene.Compile,
 			&scene.Path,
 			&scene.Position,
 			&scene.WordCount,
@@ -175,7 +180,7 @@ func GetScenesOfChapter(db *sql.DB, chapterID int) ([]Scene, error) {
 
 func GetSceneNodes(db *sql.DB) ([]Scene, error) {
 	scenes := make([]Scene, 0)
-	res, err := db.Query(`SELECT id, chapter_id, name, path, position, word_count FROM scenes ORDER BY chapter_id, position`)
+	res, err := db.Query(`SELECT id, chapter_id, name, compile, path, position, word_count FROM scenes ORDER BY chapter_id, position`)
 	if err != nil {
 		return nil, err
 	}
@@ -192,6 +197,7 @@ func GetSceneNodes(db *sql.DB) ([]Scene, error) {
 			&scene.ID,
 			&scene.ChapterID,
 			&scene.Name,
+			&scene.Compile,
 			&scene.Path,
 			&scene.Position,
 			&scene.WordCount,
