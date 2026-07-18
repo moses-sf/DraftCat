@@ -31,9 +31,10 @@ local function build_explorer_items(data)
       id = chapter.ID,
       parent_id = util.sql_null_int_value(chapter.ParentID),
       position = chapter.Position,
+      compile = chapter.Compile,
       text = chapter.Name,
       visible = true,
-      rooted = false,
+      rooted = true,
       path = chapter.Path,
       file = chapter.Path,
       kind = "chapter",
@@ -54,6 +55,7 @@ local function build_explorer_items(data)
         table.insert(items, {
           id = scene.ID,
           parent_id = scene.ChapterID,
+          compile = scene.Compile,
           text = scene.Name,
           file = scene.Path,
           visible = true,
@@ -92,6 +94,7 @@ end
 
 local function render_item(item)
   local indent = string.rep("  ", item.depth or 0)
+  local compile_icon = { "●", item.compile and "DiagnosticOk" or "DiagnosticError" }
 
   if state.picker_mode == "normal" then
     if item.kind == "root" then
@@ -105,6 +108,7 @@ local function render_item(item)
       local icon = item.rooted and " " or " "
 
       return {
+        compile_icon,
         { indent },
         { icon, "Directory" },
         { item.text },
@@ -113,6 +117,7 @@ local function render_item(item)
 
     if item.kind == "scene" then
       return {
+        compile_icon,
         { indent },
         { "󰈙 ", "Normal" },
         { item.text },
@@ -141,6 +146,7 @@ local function render_item(item)
       end
 
       return {
+        compile_icon,
         { indent },
         output_text,
         { item.text },
@@ -149,6 +155,7 @@ local function render_item(item)
 
     if item.kind == "scene" then
       return {
+        compile_icon,
         { indent },
         { " 󰈙 ", "NonText" },
         { item.text, "NonText" },
@@ -171,6 +178,7 @@ local function render_item(item)
         }
 
         return {
+          compile_icon,
           { indent },
           output_text,
           { item.text },
@@ -179,6 +187,7 @@ local function render_item(item)
 
       if item.kind == "scene" then
         return {
+          compile_icon,
           { indent },
           { item.position .. " 󰈙 " },
           { item.text },
@@ -189,6 +198,7 @@ local function render_item(item)
         local icon = item.rooted and " " or " "
 
         return {
+          compile_icon,
           { indent },
           { icon, "NonText" },
           { item.text, "NonText" },
@@ -197,6 +207,7 @@ local function render_item(item)
 
       if item.kind == "scene" then
         return {
+          compile_icon,
           { indent },
           { " 󰈙 ", "NonText" },
           { item.text, "NonText" },
@@ -378,6 +389,7 @@ function M.open()
   local base_items = build_explorer_items(data)
   local items = {}
 
+  recalculate_visibility(base_items)
   refresh_visible_items(items, base_items)
 
   state.picker = Snacks.picker({
@@ -387,7 +399,7 @@ function M.open()
 
     layout = {
       preset = "sidebar",
-      preview = false,
+      preview = true,
     },
 
     jump = {
@@ -781,6 +793,51 @@ function M.open()
           end)
         end,
       },
+      toggle_compile = {
+        action = function(picker, item)
+          if item == nil or item.path == nil then
+            return
+          end
+
+          if item.kind == "root" then
+            vim.notify("Can't toggle root compile", vim.log.levels.WARN)
+            return
+          end
+
+          local kind, id_flag = get_kind_and_flag(item)
+
+          if kind == nil then
+            return
+          end
+
+          local command = {
+            "draftcat",
+            "story",
+            "toggle-compile",
+            id_flag,
+            "-i",
+            tostring(item.id),
+            "-j",
+          }
+
+          local result = process.run_json(command, cwd)
+
+          if result == nil then
+            return
+          end
+
+          if not result.status then
+            vim.notify(vim.inspect(result.error))
+            return
+          end
+
+          local selected = {
+            id = item.id,
+            kind = item.kind,
+          }
+          data, base_items = refresh_explorer_data(picker, cwd, base_items, items, selected)
+        end,
+      },
     },
 
     win = {
@@ -793,6 +850,7 @@ function M.open()
           ["r"] = "rename",
           ["p"] = "reposition",
           ["t"] = "reroot",
+          ["<Tab>"] = "toggle_compile",
           ["<CR>"] = "confirm",
         },
       },

@@ -273,3 +273,42 @@ func TestUpdateChapterPositionDecrease(t *testing.T) {
 		t.Fatalf("New position is %d", chapterThree.Position)
 	}
 }
+
+func TestSceneToggleCompile(t *testing.T) {
+	db := basicDBSetup(t)
+	scene, err := GetScene(db, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scene.Compile {
+		t.Fatal("Incorrect startup")
+	}
+	err = UpdateSceneCompile(db, 1, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scene, err = GetScene(db, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !scene.Compile {
+		t.Fatal("Scene Didn't toggle")
+	}
+}
+
+func TestSceneChapterWiseToggleCompile(t *testing.T) {
+	db := basicDBSetup(t)
+	err := UpdateSceneCompileChapter(db, 1, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scenes, err := GetScenesOfChapter(db, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, scene := range scenes {
+		if !scene.Compile {
+			t.Fatalf("Scene didn't toggle ID: %d", scene.ID)
+		}
+	}
+}

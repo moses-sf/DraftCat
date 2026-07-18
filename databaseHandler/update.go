@@ -115,3 +115,17 @@ func UpdateScenePosition(db *sql.DB, sceneID, oldPosition, newPosition, chapterI
 		return err
 	}
 }
+
+func UpdateSceneCompile(db *sql.DB, sceneID int, compile bool) error {
+	_, err := db.Exec(`UPDATE scenes
+		SET compile = ?
+		WHERE id = ?`, compile, sceneID)
+	return err
+}
+
+func UpdateSceneCompileChapter(db *sql.DB, chapterID int, compile bool) error {
+	_, err := db.Exec(`UPDATE scenes
+		SET compile = ?
+		WHERE chapter_id = ?`, compile, chapterID)
+	return err
+}

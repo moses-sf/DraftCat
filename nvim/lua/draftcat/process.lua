@@ -48,6 +48,7 @@ function M.run_json(command, cwd)
     vim.notify(error_message(result), vim.log.levels.ERROR)
     return nil
   end
+  --vim.notify(vim.inspect(result))
   local ok, data = pcall(vim.json.decode, result.stdout)
 
   if not ok then

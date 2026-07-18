@@ -25,26 +25,26 @@ const (
 	Scene   ItemKind = "scene"
 )
 
-type DeleteOptions struct {
+type ItemKindOptions struct {
 	ItemType ItemKind
 	ID       int
 }
 
-func GenerateDeleteOptions(cmd *cobra.Command) (DeleteOptions, error) {
+func GenerateItemKindOptions(cmd *cobra.Command) (ItemKindOptions, error) {
 	folder, err := cmd.Flags().GetBool("folder")
 	if err != nil {
-		return DeleteOptions{}, err
+		return ItemKindOptions{}, err
 	}
 	scene, err := cmd.Flags().GetBool("scene")
 	if err != nil {
-		return DeleteOptions{}, err
+		return ItemKindOptions{}, err
 	}
 	id, err := cmd.Flags().GetInt("id")
 	if err != nil {
-		return DeleteOptions{}, err
+		return ItemKindOptions{}, err
 	}
 	if folder && scene {
-		return DeleteOptions{}, errors.New("cannot mark both folder and scene flags")
+		return ItemKindOptions{}, errors.New("cannot mark both folder and scene flags")
 	}
 	var itemKind ItemKind
 	if folder {
@@ -53,7 +53,7 @@ func GenerateDeleteOptions(cmd *cobra.Command) (DeleteOptions, error) {
 	if scene {
 		itemKind = Scene
 	}
-	return DeleteOptions{ItemType: itemKind, ID: id}, nil
+	return ItemKindOptions{ItemType: itemKind, ID: id}, nil
 }
 
 func DeleteChapter(db *sql.DB, id int) ([]string, error) {
@@ -135,7 +135,7 @@ func DeleteScene(db *sql.DB, id int) ([]string, error) {
 	return []string{scene.Path}, nil
 }
 
-func DeleteItem(deleteOpts DeleteOptions) ([]string, error) {
+func DeleteItem(deleteOpts ItemKindOptions) ([]string, error) {
 	dbPath, err := utilities.GetDBPath()
 	if err != nil {
 		return nil, err
@@ -174,7 +174,7 @@ var deleteCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf(`{"status":false, "error":"%s"}`, err)
 		}
-		deleteOpts, err := GenerateDeleteOptions(cmd)
+		deleteOpts, err := GenerateItemKindOptions(cmd)
 		if err != nil {
 			if j {
 				log.Fatalf(`{"status":false, "error":"%s"}`, err)
