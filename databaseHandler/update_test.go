@@ -218,11 +218,11 @@ func TestUpdateChapterPositionDecreaseNull(t *testing.T) {
 
 func TestUpdateChapterPositionIncrease(t *testing.T) {
 	db := basicDBSetup(t)
-	err := UpdateChapterPosition(db, 6, 1, 3, sql.NullInt64{Valid: true, Int64: 1})
+	err := UpdateChapterPosition(db, 7, 1, 3, sql.NullInt64{Valid: true, Int64: 1})
 	if err != nil {
 		t.Fatal("Failed to update DB")
 	}
-	chapterOne, err := GetChapter(db, 6)
+	chapterOne, err := GetChapter(db, 7)
 	if err != nil {
 		t.Fatal("Couldn't retrieve chapter")
 	}
@@ -236,12 +236,12 @@ func TestUpdateChapterPositionIncrease(t *testing.T) {
 	if chapterTwo.Position != 1 {
 		t.Fatalf("New position is %d", chapterTwo.Position)
 	}
-	chapterThree, err := GetChapter(db, 7)
+	chapterThree, err := GetChapter(db, 8)
 	if err != nil {
 		t.Fatal("Couldn't retrieve chapter")
 	}
 	if chapterThree.Position != 2 {
-		t.Fatalf("New position is %d", chapterThree.Position)
+		t.Fatalf("New position 7 is %d", chapterThree.Position)
 	}
 }
 

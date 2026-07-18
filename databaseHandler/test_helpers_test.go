@@ -147,6 +147,16 @@ func basicDBSetup(t *testing.T) *sql.DB {
 		t.Fatal(err)
 	}
 
+	_, err = AddChapter(db, ChapterCreate{
+		Name:     "Other2",
+		Path:     "Chapter 2/Other2",
+		Position: 2,
+		ParentID: parentTwo,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	_, err = InsertChapterAtPosition(db, ChapterCreate{
 		Name:     "Inserted Notes",
 		Path:     "Chapter 1/Inserted Notes",
@@ -193,6 +203,5 @@ func basicDBSetup(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("InsertSceneAtPosition returned error: %v", err)
 	}
-
 	return db
 }

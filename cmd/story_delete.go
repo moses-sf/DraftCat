@@ -57,7 +57,49 @@ func GenerateDeleteOptions(cmd *cobra.Command) (DeleteOptions, error) {
 }
 
 func DeleteChapter(db *sql.DB, id int) ([]string, error) {
-	return []string{""}, nil
+	deletePaths := make([]string, 0)
+	chapter, err := databasehandler.GetChapter(db, id)
+	if err != nil {
+		return nil, err
+	}
+	childChapters, err := databasehandler.GetChaptersWithParent(db, sql.NullInt64{Valid: true, Int64: int64(chapter.ID)})
+	if err != nil {
+		return nil, err
+	}
+	if len(childChapters) > 0 {
+		for _, childChapter := range childChapters {
+			paths, err := DeleteChapter(db, childChapter.ID)
+			if err != nil {
+				return nil, err
+			}
+			deletePaths = append(deletePaths, paths...)
+		}
+	}
+	childScenes, err := databasehandler.GetScenesOfChapter(db, chapter.ID)
+	if err != nil {
+		return nil, err
+	}
+	for _, childScene := range childScenes {
+		deletePaths = append(deletePaths, childScene.Path)
+		err := os.Remove(childScene.Path)
+		if err != nil {
+			return nil, err
+		}
+	}
+	err = databasehandler.DeleteScenesFromChapter(db, chapter.ID)
+	if err != nil {
+		return nil, err
+	}
+	err = os.RemoveAll(chapter.Path)
+	if err != nil {
+		return nil, err
+	}
+	err = databasehandler.DeleteChapterUpdatePosition(db, chapter.ID, chapter.Position, chapter.ParentID)
+	if err != nil {
+		return nil, err
+	}
+	deletePaths = append(deletePaths, chapter.Path)
+	return deletePaths, nil
 }
 
 func DeleteScene(db *sql.DB, id int) ([]string, error) {
