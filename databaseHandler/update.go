@@ -129,3 +129,11 @@ func UpdateSceneCompileChapter(db *sql.DB, chapterID int, compile bool) error {
 		WHERE chapter_id = ?`, compile, chapterID)
 	return err
 }
+
+func UpdateChapterCompile(db *sql.DB, chapterID int, compile bool) error {
+	_, err := db.Exec(`
+		UPDATE chapters
+		SET compile = ?
+		WHERE id = ?`, compile, chapterID)
+	return err
+}

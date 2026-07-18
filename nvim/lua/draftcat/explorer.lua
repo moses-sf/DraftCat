@@ -94,7 +94,7 @@ end
 
 local function render_item(item)
   local indent = string.rep("  ", item.depth or 0)
-  local compile_icon = { "●", item.compile and "DiagnosticOk" or "DiagnosticError" }
+  local compile_icon = { item.compile and "● " or "○ ", item.compile and "DiagnosticOk" or "DiagnosticError" }
 
   if state.picker_mode == "normal" then
     if item.kind == "root" then
@@ -108,8 +108,8 @@ local function render_item(item)
       local icon = item.rooted and " " or " "
 
       return {
-        compile_icon,
         { indent },
+        compile_icon,
         { icon, "Directory" },
         { item.text },
       }
@@ -117,8 +117,8 @@ local function render_item(item)
 
     if item.kind == "scene" then
       return {
-        compile_icon,
         { indent },
+        compile_icon,
         { "󰈙 ", "Normal" },
         { item.text },
       }
@@ -146,8 +146,8 @@ local function render_item(item)
       end
 
       return {
-        compile_icon,
         { indent },
+        compile_icon,
         output_text,
         { item.text },
       }
@@ -155,8 +155,8 @@ local function render_item(item)
 
     if item.kind == "scene" then
       return {
-        compile_icon,
         { indent },
+        compile_icon,
         { " 󰈙 ", "NonText" },
         { item.text, "NonText" },
       }
@@ -178,8 +178,8 @@ local function render_item(item)
         }
 
         return {
-          compile_icon,
           { indent },
+          compile_icon,
           output_text,
           { item.text },
         }
@@ -187,8 +187,8 @@ local function render_item(item)
 
       if item.kind == "scene" then
         return {
-          compile_icon,
           { indent },
+          compile_icon,
           { item.position .. " 󰈙 " },
           { item.text },
         }
@@ -198,8 +198,8 @@ local function render_item(item)
         local icon = item.rooted and " " or " "
 
         return {
-          compile_icon,
           { indent },
+          compile_icon,
           { icon, "NonText" },
           { item.text, "NonText" },
         }
@@ -207,8 +207,8 @@ local function render_item(item)
 
       if item.kind == "scene" then
         return {
-          compile_icon,
           { indent },
+          compile_icon,
           { " 󰈙 ", "NonText" },
           { item.text, "NonText" },
         }

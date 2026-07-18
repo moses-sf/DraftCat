@@ -280,10 +280,10 @@ func TestSceneToggleCompile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if scene.Compile {
+	if !scene.Compile {
 		t.Fatal("Incorrect startup")
 	}
-	err = UpdateSceneCompile(db, 1, true)
+	err = UpdateSceneCompile(db, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,14 +291,14 @@ func TestSceneToggleCompile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !scene.Compile {
+	if scene.Compile {
 		t.Fatal("Scene Didn't toggle")
 	}
 }
 
 func TestSceneChapterWiseToggleCompile(t *testing.T) {
 	db := basicDBSetup(t)
-	err := UpdateSceneCompileChapter(db, 1, true)
+	err := UpdateSceneCompileChapter(db, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,8 +307,30 @@ func TestSceneChapterWiseToggleCompile(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, scene := range scenes {
-		if !scene.Compile {
+		if scene.Compile {
 			t.Fatalf("Scene didn't toggle ID: %d", scene.ID)
 		}
+	}
+}
+
+func TestChaptertoggleCompile(t *testing.T) {
+	db := basicDBSetup(t)
+	chapter, err := GetChapter(db, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !chapter.Compile {
+		t.Fatal("Incorrect Chapter Startup")
+	}
+	err = UpdateChapterCompile(db, 1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chapter, err = GetChapter(db, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chapter.Compile {
+		t.Fatal("Chapter didn't toggle")
 	}
 }

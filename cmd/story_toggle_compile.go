@@ -16,8 +16,77 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func ToggleChapterChild(db *sql.DB, id int, compile bool) error {
+	chapter, err := databasehandler.GetChapter(db, id)
+	if err != nil {
+		return err
+	}
+	childChapters, err := databasehandler.GetChaptersWithParent(db, sql.NullInt64{Valid: true, Int64: int64(chapter.ID)})
+	if err != nil {
+		return err
+	}
+	for _, childChapter := range childChapters {
+		err = ToggleChapterChild(db, childChapter.ID, compile)
+		if err != nil {
+			return err
+		}
+	}
+	chapterToml, err := utilities.LoadChapterToml(chapter.Path)
+	if err != nil {
+		return err
+	}
+	err = databasehandler.UpdateSceneCompileChapter(db, chapter.ID, compile)
+	if err != nil {
+		return nil
+	}
+	err = chapterToml.RebuildSceneMetadata(db)
+	if err != nil {
+		return err
+	}
+	err = databasehandler.UpdateChapterCompile(db, chapter.ID, compile)
+	if err != nil {
+		return err
+	}
+	chapterToml.Compile = compile
+	chapterTomlPath := filepath.Join(chapter.Path, ".chapter.toml")
+	return utilities.EncodeToml(chapterTomlPath, chapterToml)
+}
+
 func ToggleChapter(db *sql.DB, id int) error {
-	return nil
+	chapter, err := databasehandler.GetChapter(db, id)
+	if err != nil {
+		return err
+	}
+	childChapters, err := databasehandler.GetChaptersWithParent(db, sql.NullInt64{Valid: true, Int64: int64(chapter.ID)})
+	if err != nil {
+		return err
+	}
+	for _, childChapter := range childChapters {
+		err = ToggleChapterChild(db, childChapter.ID, !chapter.Compile)
+		if err != nil {
+			return err
+		}
+	}
+	chapterToml, err := utilities.LoadChapterToml(chapter.Path)
+	if err != nil {
+		return err
+	}
+	err = databasehandler.UpdateSceneCompileChapter(db, chapter.ID, !chapter.Compile)
+	if err != nil {
+		return nil
+	}
+	err = chapterToml.RebuildSceneMetadata(db)
+	if err != nil {
+		return err
+	}
+
+	err = databasehandler.UpdateChapterCompile(db, chapter.ID, !chapter.Compile)
+	if err != nil {
+		return err
+	}
+	chapterToml.Compile = !chapter.Compile
+	chapterTomlPath := filepath.Join(chapter.Path, ".chapter.toml")
+	return utilities.EncodeToml(chapterTomlPath, chapterToml)
 }
 
 func ToggleScene(db *sql.DB, id int) error {
@@ -37,11 +106,9 @@ func ToggleScene(db *sql.DB, id int) error {
 	if err != nil {
 		return err
 	}
-	for _, childScene := range chapterToml.Scenes {
-		if childScene.ID == id {
-			childScene.Compile = !childScene.Compile
-			break
-		}
+	err = chapterToml.RebuildSceneMetadata(db)
+	if err != nil {
+		return err
 	}
 	chapterTomlPath := filepath.Join(chapter.Path, ".chapter.toml")
 	return utilities.EncodeToml(chapterTomlPath, chapterToml)

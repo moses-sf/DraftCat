@@ -46,6 +46,7 @@ func (c *ChapterMetaData) RebuildSceneMetadata(db *sql.DB) error {
 		newSceneList = append(newSceneList, SceneMetaData{
 			ID:       scene.ID,
 			Name:     scene.Name,
+			Compile:  scene.Compile,
 			Path:     scene.Path,
 			Position: scene.Position,
 		})
