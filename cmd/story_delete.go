@@ -73,7 +73,7 @@ func DeleteScene(db *sql.DB, id int) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = databasehandler.DeleteScene(db, id, scene.ChapterID, scene.Position)
+	err = databasehandler.DeleteSceneUpdatePosition(db, id, scene.ChapterID, scene.Position)
 	if err != nil {
 		return nil, err
 	}

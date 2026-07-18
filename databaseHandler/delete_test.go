@@ -12,7 +12,7 @@ func TestDeleteSceneInitial(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = DeleteScene(db, 1, scene.ChapterID, scene.Position)
+	err = DeleteSceneUpdatePosition(db, 1, scene.ChapterID, scene.Position)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestDeleteSceneMiddle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = DeleteScene(db, 2, scene.ChapterID, scene.Position)
+	err = DeleteSceneUpdatePosition(db, 2, scene.ChapterID, scene.Position)
 	if err != nil {
 		t.Fatal(err)
 	}

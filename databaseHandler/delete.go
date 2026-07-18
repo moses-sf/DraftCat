@@ -6,7 +6,7 @@ package databasehandler
 
 import "database/sql"
 
-func DeleteScene(db *sql.DB, id, chapterID, position int) error {
+func DeleteSceneUpdatePosition(db *sql.DB, id, chapterID, position int) error {
 	_, err := db.Exec(`
 		DELETE FROM scenes
 		WHERE id = ? AND chapter_id = ?`, id, chapterID)
@@ -21,5 +21,12 @@ func UpdateDeletedScenePosition(db *sql.DB, chapterID, position int) error {
 		UPDATE scenes
 		SET position = position - 1
 		WHERE position >= ? AND chapter_id = ?`, position, chapterID)
+	return err
+}
+
+func DeleteScene(db *sql.DB, id int) error {
+	_, err := db.Exec(`
+		DELETE FROM scenes
+		WHERE id = ?`, id)
 	return err
 }
