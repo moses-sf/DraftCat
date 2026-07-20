@@ -170,6 +170,10 @@ var deleteCmd = &cobra.Command{
 	Short: "Delete a scene or chapter",
 	Long:  "Delete a scene or chapter and all the chapters contents",
 	Run: func(cmd *cobra.Command, args []string) {
+		_, err := utilities.IsDraftcatProject()
+		if err != nil {
+			log.Fatalf("%s", err)
+		}
 		j, err := cmd.Flags().GetBool("json")
 		if err != nil {
 			log.Fatalf(`{"status":false, "error":"%s"}`, err)

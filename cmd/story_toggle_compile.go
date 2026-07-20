@@ -145,6 +145,10 @@ var toggleCompileCmd = &cobra.Command{
 	Short: "Toggle Compile Setting",
 	Long:  "Toggle Compile Setting for chapters and scenes",
 	Run: func(cmd *cobra.Command, args []string) {
+		_, err := utilities.IsDraftcatProject()
+		if err != nil {
+			log.Fatalf("%s", err)
+		}
 		j, err := cmd.Flags().GetBool("json")
 		if err != nil {
 			log.Fatalf(`{"status":false, "error":"%s"}`, err)

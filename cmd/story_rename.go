@@ -330,8 +330,20 @@ var renameSceneCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf(`{"status":false, "error":"%s"}`, err)
 		}
+		root, err := utilities.GetRelativeRootPath()
+		if err != nil {
+			log.Fatalf(`{"status":false, "error":"%s"}`, err)
+		}
+		err = utilities.CommitBackupSnapshot(root, "rename")
+		if err != nil {
+			log.Fatalf(`{"status":false, "error":"%s"}`, err)
+		}
 		path, err := RenameSceneCommand(cmd)
 		if err != nil {
+			err = utilities.RestoreChanges(root)
+			if err != nil {
+				log.Fatalf(`{"status":false, "error":"FATAL %s"}`, err)
+			}
 			if j {
 				log.Fatalf(`{"status":false, "error":"%s"}`, err)
 			} else {
