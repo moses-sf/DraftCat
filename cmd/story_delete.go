@@ -136,11 +136,7 @@ func DeleteScene(db *sql.DB, id int) ([]string, error) {
 }
 
 func DeleteItem(deleteOpts ItemKindOptions) ([]string, error) {
-	dbPath, err := utilities.GetDBPath()
-	if err != nil {
-		return nil, err
-	}
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := utilities.OpenDB()
 	if err != nil {
 		fmt.Println("Could not access story DB, please run drafcat story repair")
 		return nil, err

@@ -115,11 +115,7 @@ func ToggleScene(db *sql.DB, id int) error {
 }
 
 func ToggleCompile(toggleOptions ItemKindOptions) error {
-	dbPath, err := utilities.GetDBPath()
-	if err != nil {
-		return err
-	}
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := utilities.OpenDB()
 	if err != nil {
 		fmt.Println("Could not access story DB, please run drafcat story repair")
 		return err

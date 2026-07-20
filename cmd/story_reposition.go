@@ -72,12 +72,7 @@ func UpdateFolderPosition(db *sql.DB, folderOpts FolderRepositionOptions) error 
 }
 
 func RepositionFolder(folderOpts FolderRepositionOptions) error {
-	root, err := utilities.GetRelativeRootPath()
-	if err != nil {
-		return err
-	}
-	dbPath := filepath.Join(root, ".story.db")
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := utilities.OpenDB()
 	if err != nil {
 		return err
 	}
@@ -154,12 +149,7 @@ func GetRepositionSceneOptions(cmd *cobra.Command) (RepositionSceneOptions, erro
 }
 
 func RepositionScene(sceneOpts RepositionSceneOptions) error {
-	root, err := utilities.GetRelativeRootPath()
-	if err != nil {
-		return err
-	}
-	dbPath := filepath.Join(root, ".story.db")
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := utilities.OpenDB()
 	if err != nil {
 		return err
 	}

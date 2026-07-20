@@ -66,15 +66,6 @@ func IsDraftcatProject() (bool, error) {
 	return false, fmt.Errorf("not a draftcat project")
 }
 
-func GetDBPath() (string, error) {
-	root, err := GetRelativeRootPath()
-	if err != nil {
-		return "", err
-	}
-	dbPath := filepath.Join(root, ".story.db")
-	return dbPath, nil
-}
-
 func GetRelativeRootPath() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {

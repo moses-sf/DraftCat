@@ -88,11 +88,7 @@ func ChapterUpdateFromRoot(db *sql.DB, rootPath string, id sql.NullInt64) ([]*Re
 
 func RenameFolder(folderOpts *FolderRenameOptions) ([]*RenameOutcome, error) {
 	outcomes := make([]*RenameOutcome, 0)
-	dbPath, err := utilities.GetDBPath()
-	if err != nil {
-		return nil, err
-	}
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := utilities.OpenDB()
 	if err != nil {
 		fmt.Println("Could not access story DB, please run drafcat story repair")
 		return nil, err
@@ -235,11 +231,7 @@ type SceneRenameOptions struct {
 }
 
 func RenameScene(sceneOpts *SceneRenameOptions) (string, error) {
-	dbPath, err := utilities.GetDBPath()
-	if err != nil {
-		return "", err
-	}
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := utilities.OpenDB()
 	if err != nil {
 		fmt.Println("Could not access story DB, please run drafcat story repair")
 		return "", err

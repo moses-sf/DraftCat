@@ -5,14 +5,13 @@ Copyright © 2026 Moses Sukumaran moses@solframe.in
 package cmd
 
 import (
-	"bytes"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 
-	"github.com/BurntSushi/toml"
 	databasehandler "github.com/moses-sf/DraftCat/databaseHandler"
 	"github.com/moses-sf/DraftCat/utilities"
 	"github.com/spf13/cobra"
@@ -240,6 +239,98 @@ var addFolderCmd = &cobra.Command{
 	},
 }
 
+type AddSceneOptions struct {
+	Name        string
+	Position    int
+	ChapterID   sql.NullInt64
+	MaxPosition int
+}
+
+func GenerateAddSceneOptions(db *sql.DB, cmd *cobra.Command, args []string) (AddSceneOptions, error) {
+	sceneName := "scene"
+	position := 0
+	folderID, err := cmd.Flags().GetInt("folderID")
+	if err != nil {
+		return AddSceneOptions{}, err
+	}
+	if cmd.Flags().Changed("name") {
+		sceneName, err = cmd.Flags().GetString("name")
+		if err != nil {
+			return AddSceneOptions{}, err
+		}
+	}
+	maxPosition, err := databasehandler.GetMaxScenePosition(db, folderID)
+	if err != nil {
+		fmt.Println("Error in retrieving max position")
+	}
+	if cmd.Flags().Changed("position") {
+		position, err = cmd.Flags().GetInt("position")
+		if err != nil {
+			return AddSceneOptions{}, err
+		}
+	} else {
+		position = maxPosition + 1
+	}
+
+	var chapterID sql.NullInt64
+	if folderID == 0 {
+		chapterID = sql.NullInt64{Valid: false}
+	} else {
+		chapterID = sql.NullInt64{Valid: true, Int64: int64(folderID)}
+	}
+
+	return AddSceneOptions{
+		Name:        sceneName,
+		Position:    position,
+		ChapterID:   chapterID,
+		MaxPosition: maxPosition,
+	}, nil
+}
+
+func AddScene(db *sql.DB, sceneOpts AddSceneOptions) error {
+	if !sceneOpts.ChapterID.Valid {
+		return errors.New("cannot insert scene at root")
+	}
+
+	chapter, err := databasehandler.GetChapter(db, int(sceneOpts.ChapterID.Int64))
+	if err != nil {
+		return err
+	}
+	chapterToml, err := utilities.LoadChapterToml(chapter.Path)
+	if err != nil {
+		return err
+	}
+
+	scenePath := filepath.Join(chapter.Path, sceneOpts.Name+".md")
+	err = CreateScene(scenePath)
+	if err != nil {
+		return err
+	}
+	scene := databasehandler.SceneCreate{
+		ChapterID: chapterToml.ID,
+		Name:      sceneOpts.Name,
+		Path:      scenePath,
+		Position:  sceneOpts.Position,
+	}
+	sceneID := 0
+	if sceneOpts.MaxPosition >= sceneOpts.Position {
+		sceneID, err = databasehandler.InsertSceneAtPosition(db, scene)
+	} else {
+		sceneID, err = databasehandler.AddScene(db, scene)
+	}
+	if err != nil {
+		return err
+	}
+	chapterToml.Scenes = append(chapterToml.Scenes, utilities.SceneMetaData{
+		ID:       sceneID,
+		Name:     sceneOpts.Name,
+		Path:     scenePath,
+		Position: sceneOpts.Position,
+	})
+
+	return utilities.EncodeToml(filepath.Join(chapter.Path, ".chapter.toml"), chapterToml)
+}
+
 var addSceneCmd = &cobra.Command{
 	Use:   "scene",
 	Short: "Add a scene.md",
@@ -250,97 +341,27 @@ var addSceneCmd = &cobra.Command{
 			fmt.Println(err)
 			return
 		}
-		cwd, err := os.Getwd()
-		if err != nil {
-			fmt.Println("Error getting current directory")
-			return
-		}
-		if !utilities.FileExists(filepath.Join(cwd, ".chapter.toml")) {
-			fmt.Println("Incorrect folder, not created from Draftcat. Please make sure you're in a folder generated from DraftCat.")
-			return
-		}
-		chapter, err := utilities.LoadChapterToml(cwd)
-		if err != nil {
-			fmt.Println("Error in loading metadata")
-			return
-		}
 		j, err := cmd.Flags().GetBool("json")
 		if err != nil {
 			fmt.Println("Failed to load json")
 			return
 		}
-		db, err := sql.Open("sqlite", filepath.Join(cwd, chapter.PathToRoot, ".story.db"))
+		db, err := utilities.OpenDB()
 		if err != nil {
-			fmt.Println("Could not access story DB, please run drafcat story repair")
+			fmt.Println(err)
 			return
 		}
-		defer func(d *sql.DB) {
-			err = db.Close()
-			if err != nil {
-				fmt.Println(err)
+		defer func() {
+			if closeErr := db.Close(); closeErr != nil {
+				fmt.Println("Error closing DB:", closeErr)
 			}
-		}(db)
-		sceneName := "scene"
-		position := 0
-		if cmd.Flags().Changed("name") {
-			sceneName, err = cmd.Flags().GetString("name")
-			if err != nil {
-				fmt.Println("Error in setting Scene name")
-				return
-			}
-		}
-		maxPosition, err := databasehandler.GetMaxScenePosition(db, chapter.ID)
+		}()
+		sceneOpts, err := GenerateAddSceneOptions(db, cmd, args)
 		if err != nil {
-			fmt.Println("Error in retrieving max position")
-		}
-		if cmd.Flags().Changed("position") {
-			position, err = cmd.Flags().GetInt("position")
-			if err != nil {
-				fmt.Println("Error in getting position")
-				return
-			}
-		} else {
-			position = maxPosition + 1
-		}
-
-		scenePath := filepath.Join(cwd, sceneName+".md")
-		err = CreateScene(scenePath)
-		if err != nil {
-			fmt.Println("Scene Creation Failed")
+			fmt.Println(err)
 			return
 		}
-		scene := databasehandler.SceneCreate{
-			ChapterID: chapter.ID,
-			Name:      sceneName,
-			Path:      scenePath,
-			Position:  position,
-		}
-		sceneID := 0
-		if maxPosition >= position {
-			sceneID, err = databasehandler.InsertSceneAtPosition(db, scene)
-		} else {
-			sceneID, err = databasehandler.AddScene(db, scene)
-		}
-		if sceneID == 0 {
-			fmt.Println("Scene Id not updated")
-			return
-		}
-		chapter.Scenes = append(chapter.Scenes, utilities.SceneMetaData{
-			ID:       sceneID,
-			Name:     sceneName,
-			Path:     scenePath,
-			Position: position,
-		})
-
-		buf := new(bytes.Buffer)
-		encoder := toml.NewEncoder(buf)
-		err = encoder.Encode(chapter)
-		if err != nil {
-			fmt.Println("Error encoding chapter data")
-			return
-		}
-
-		err = os.WriteFile(cwd+"/.chapter.toml", buf.Bytes(), 0o644)
+		err = AddScene(db, sceneOpts)
 		if err != nil {
 			if j {
 				fmt.Printf(`{"state":false, "error":"%s"}`, err)
@@ -363,8 +384,10 @@ func initAddCmd() {
 
 	addFolderCmd.Flags().StringP("name", "n", "", "Set the name of the folder")
 	addFolderCmd.Flags().IntP("position", "p", 0, "Set the position of the folder in the project")
+	addFolderCmd.Flags().IntP("folderID", "f", 0, "Chapter ID for scene to be inserted in")
 	addFolderCmd.Flags().BoolP("json", "j", false, "Json output")
 	addSceneCmd.Flags().StringP("name", "n", "", "Set the name of the scene")
 	addSceneCmd.Flags().IntP("position", "p", 0, "Set the position of the scene in the chapter")
+	addSceneCmd.Flags().IntP("folderID", "f", 0, "Chapter ID for scene to be inserted in")
 	addSceneCmd.Flags().BoolP("json", "j", false, "Json output")
 }

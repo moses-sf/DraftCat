@@ -5,10 +5,8 @@ Copyright © 2026 Moses Sukumaran moses@solframe.in
 package cmd
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
-	"path/filepath"
 
 	databasehandler "github.com/moses-sf/DraftCat/databaseHandler"
 	"github.com/moses-sf/DraftCat/utilities"
@@ -25,8 +23,7 @@ func BuildStoryProject() (*utilities.StoryStructure, error) {
 		return nil, err
 	}
 
-	dbPath := filepath.Join(root, ".story.db")
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := utilities.OpenDB()
 	if err != nil {
 		return nil, err
 	}
