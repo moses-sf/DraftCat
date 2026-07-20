@@ -29,15 +29,6 @@ var snapshotCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf(`{"status":false, "error":"%s"}`, err)
 		}
-		path, err := utilities.GetRelativeRootPath()
-		if err != nil {
-			if j {
-				log.Fatalf(`{"status":false, "error":"%s"}`, err)
-			} else {
-				log.Fatal(err)
-			}
-			return
-		}
 		name, err := cmd.Flags().GetString("name")
 		if err != nil {
 			if j {
@@ -48,7 +39,7 @@ var snapshotCmd = &cobra.Command{
 			return
 		}
 		message := "draftcat|snapshot|" + name
-		err = utilities.CommitWithMessage(path, message)
+		err = utilities.CommitWithMessage(message)
 		if err != nil {
 			if j {
 				log.Fatalf(`{"status":false, "error":"%s"}`, err)

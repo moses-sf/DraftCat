@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -30,7 +29,7 @@ func CreateScene(path string) error {
 	return nil
 }
 
-func CreateChapter(db *sql.DB, path, name, root string, parentID sql.NullInt64, position int) error {
+func CreateChapter(db *sql.DB, path, root string, folderOptions AddFolderOptions) error {
 	info, err := os.Stat(path)
 
 	if err == nil {
@@ -45,17 +44,13 @@ func CreateChapter(db *sql.DB, path, name, root string, parentID sql.NullInt64, 
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		return fmt.Errorf("create folder %s: %w", path, err)
 	}
-	newPosition := position
-	maxPosition, err := databasehandler.GetMaxChapterPosition(db, parentID)
-	if err != nil {
-		return err
-	}
-	if newPosition == 0 || newPosition > maxPosition {
-		newPosition = maxPosition + 1
+	newPosition := folderOptions.Position
+	if newPosition == 0 || newPosition > folderOptions.MaxPosition {
+		newPosition = folderOptions.MaxPosition + 1
 	}
 	chapID, err := databasehandler.InsertChapterAtPosition(db, databasehandler.ChapterCreate{
-		Name:     name,
-		ParentID: parentID,
+		Name:     folderOptions.Name,
+		ParentID: folderOptions.ParentID,
 		Path:     path,
 		Position: newPosition,
 	})
@@ -85,8 +80,8 @@ func CreateChapter(db *sql.DB, path, name, root string, parentID sql.NullInt64, 
 	})
 	chapter := utilities.ChapterMetaData{
 		ID:         chapID,
-		Name:       name,
-		ParentID:   parentID,
+		Name:       folderOptions.Name,
+		ParentID:   folderOptions.ParentID,
 		PathToRoot: root,
 		Position:   newPosition,
 		Scenes:     scene,
@@ -136,101 +131,135 @@ var addCmd = &cobra.Command{
 	},
 }
 
+type AddFolderOptions struct {
+	Name        string
+	Position    int
+	ParentID    sql.NullInt64
+	MaxPosition int
+}
+
+func GenerateAddFolderOptions(db *sql.DB, cmd *cobra.Command, args []string) (AddFolderOptions, error) {
+	var position int
+	var chapterName string
+	if cmd.Flags().Changed("name") {
+		chapName, err := cmd.Flags().GetString("name")
+		if err != nil {
+			return AddFolderOptions{}, err
+		}
+		chapterName = chapName
+	} else {
+		fmt.Print("No name provided, creating folder called Chapter 1\n")
+		chapterName = "Chapter 1"
+	}
+	parentID := sql.NullInt64{
+		Valid: false,
+	}
+	parent, err := cmd.Flags().GetInt("folderID")
+	if err != nil {
+		return AddFolderOptions{}, err
+	}
+	if parent != 0 {
+		parentID.Valid = true
+		parentID.Int64 = int64(parent)
+	}
+	position, err = cmd.Flags().GetInt("position")
+	if err != nil {
+		return AddFolderOptions{}, err
+	}
+	maxPosition, err := databasehandler.GetMaxChapterPosition(db, parentID)
+	if err != nil {
+		return AddFolderOptions{}, err
+	}
+	return AddFolderOptions{Name: chapterName, ParentID: parentID, Position: position, MaxPosition: maxPosition}, nil
+}
+
+func AddFolder(db *sql.DB, folderOptions AddFolderOptions) error {
+	var root string
+	var path string
+	if folderOptions.ParentID.Valid {
+		chapter, err := databasehandler.GetChapter(db, int(folderOptions.ParentID.Int64))
+		if err != nil {
+			return err
+		}
+		chapterToml, err := utilities.LoadChapterToml(chapter.Path)
+		if err != nil {
+			return err
+		}
+		path = chapter.Path
+		root = chapterToml.PathToRoot + "/.."
+	} else {
+		p, err := utilities.GetRelativeRootPath()
+		if err != nil {
+			return err
+		}
+		path = p
+		root = ".."
+	}
+	chapterName := folderOptions.Name
+	nameExists, err := ChapterExists(db, chapterName, folderOptions.ParentID)
+	if err != nil {
+		return err
+	}
+	for nameExists {
+		chapterName = fmt.Sprintf("%s copy", chapterName)
+		nameExists, err = ChapterExists(db, chapterName, folderOptions.ParentID)
+		if err != nil {
+			return err
+		}
+	}
+	folderOptions.Name = chapterName
+	chapterPath := filepath.Join(path, chapterName)
+	return CreateChapter(db, chapterPath, root, folderOptions)
+}
+
 var addFolderCmd = &cobra.Command{
 	Use:   "folder",
 	Short: "Add a folder",
 	Long: `Add a folder. 
 	-b for initialising without basic.md file`,
 	Run: func(cmd *cobra.Command, args []string) {
-		var chapterName string
-		parent := false
-		root := ".."
-		position := 0
 		_, err := utilities.IsDraftcatProject()
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		cwd, err := utilities.FindToml(".story.toml")
-		if err != nil {
-			cwd, err = utilities.FindToml(".chapter.toml")
-			if err != nil {
-				fmt.Println("Error retrieving root directory. Does .story.toml or .chapter.toml exist in this folder?")
-			}
-			parent = true
-		}
 
-		if cmd.Flags().Changed("name") {
-			chapterName, err = cmd.Flags().GetString("name")
-			if err != nil {
-				fmt.Println("Couldn't register name")
-				return
-			}
-		} else {
-			fmt.Print("No name provided, creating folder called Chapter 1\n")
-			chapterName = "Chapter 1"
-		}
-		parentID := sql.NullInt64{
-			Valid: false,
-		}
-
-		if cmd.Flags().Changed("position") {
-			pos, err := cmd.Flags().GetInt("position")
-			if err != nil {
-				fmt.Println("Can't register position")
-				return
-			}
-			position = pos
-		}
 		j, err := cmd.Flags().GetBool("json")
 		if err != nil {
 			fmt.Println("Failed to load json")
 			return
 		}
-		dbPath := filepath.Join(cwd, ".story.db")
-		if parent {
-			chapter, err := utilities.LoadChapterToml(cwd)
-			if err != nil {
-				fmt.Println("Couldn't load folder data")
-				return
-			}
-			root = "../" + chapter.PathToRoot
-			parentID = sql.NullInt64{
-				Valid: true,
-				Int64: int64(chapter.ID),
-			}
-			dbPath = filepath.Join(cwd, chapter.PathToRoot, ".story.db")
-		}
-		db, err := sql.Open("sqlite", dbPath)
+		db, err := utilities.OpenDB()
 		if err != nil {
-			fmt.Println("Could not access story DB, please run drafcat story repair")
+			fmt.Println(err)
 			return
 		}
 		defer func() {
 			if closeErr := db.Close(); closeErr != nil {
-				log.Println("Error closing DB:", closeErr)
+				fmt.Println("Error closing DB:", closeErr)
 			}
 		}()
-		nameExists, err := ChapterExists(db, chapterName, parentID)
+		folderOpts, err := GenerateAddFolderOptions(db, cmd, args)
 		if err != nil {
-			fmt.Println("error retrieving data")
+			fmt.Println(err)
 			return
 		}
-		for nameExists {
-			chapterName = fmt.Sprintf("%s copy", chapterName)
-			nameExists, err = ChapterExists(db, chapterName, parentID)
-			if err != nil {
-				fmt.Println("error retrieving data")
-				return
-			}
+		var id int64
+		if folderOpts.ParentID.Valid {
+			id = folderOpts.ParentID.Int64
+		} else {
+			id = 0
 		}
-		err = CreateChapter(db, filepath.Join(cwd, chapterName), chapterName, root, parentID, position)
+		message := fmt.Sprintf("addFolder|%s|%d", folderOpts.Name, id)
+		err = utilities.CommitBackupSnapshot(message)
 		if err != nil {
-			if j {
-				fmt.Printf(`{"status":false, "error":"%s"}`, err)
-				return
-			}
-			fmt.Println("Chapter Creation Failed", err)
+			fmt.Printf(`{"state":false, "error":"%s"}`, err)
+			return
+		}
+		err = AddFolder(db, folderOpts)
+		if err != nil {
+			err = utilities.RestoreChanges()
+			fmt.Printf(`{"status":true, "error":"%s"}`, err)
 			return
 		}
 		if j {
@@ -361,8 +390,15 @@ var addSceneCmd = &cobra.Command{
 			fmt.Println(err)
 			return
 		}
+		message := fmt.Sprintf("addScene|%s|%d", sceneOpts.Name, sceneOpts.ChapterID.Int64)
+		err = utilities.CommitBackupSnapshot(message)
+		if err != nil {
+			fmt.Printf(`{"state":false, "error":"%s"}`, err)
+			return
+		}
 		err = AddScene(db, sceneOpts)
 		if err != nil {
+			err = utilities.RestoreChanges()
 			if j {
 				fmt.Printf(`{"state":false, "error":"%s"}`, err)
 				return

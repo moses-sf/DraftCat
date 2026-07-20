@@ -396,6 +396,7 @@ function M.open()
     title = "Draftcat",
     auto_close = false,
     tree = true,
+    git_status = true,
 
     layout = {
       preset = "sidebar",
@@ -410,6 +411,11 @@ function M.open()
       draftcat_noop = {
         action = function()
           -- Intentionally empty.
+        end,
+      },
+      draftcat_debug = {
+        action = function(_, item)
+          vim.notify(vim.inspect(item))
         end,
       },
 
@@ -528,6 +534,7 @@ function M.open()
           if item == nil then
             return
           end
+
           if not util.save_all_buffers() then
             return
           end
@@ -542,7 +549,7 @@ function M.open()
             name = vim.trim(name)
 
             if name == "" then
-              vim.notify("Name can't be empty")
+              vim.notify("Name can't be empty", vim.log.levels.ERROR)
               return
             end
 
@@ -550,34 +557,51 @@ function M.open()
 
             if name:sub(-1) == "/" then
               kind = "folder"
-              name = name:sub(1, -2)
+              name = vim.trim(name:sub(1, -2))
+            end
 
-              if name == "" then
-                vim.notify("Folder name can't be empty")
-                return
-              end
-            elseif name:find("/", 1, true) then
-              vim.notify("Cannot have / within scene/folder name")
+            if name == "" then
+              vim.notify(
+                kind == "folder" and "Folder name can't be empty" or "Name can't be empty",
+                vim.log.levels.ERROR
+              )
               return
             end
 
-            local root_path
+            if name:find("/", 1, true) then
+              vim.notify("Cannot have / within scene/folder name", vim.log.levels.ERROR)
+              return
+            end
+
+            local parent
             local position
 
             if item.kind == "root" then
-              root_path = item.path
+              if kind == "scene" then
+                vim.notify("Can't add scenes to the project root", vim.log.levels.ERROR)
+                return
+              end
+
+              parent = 0
               position = 1
             elseif item.kind == "scene" then
-              root_path = util.parent_path(item.path)
+              if item.parent_id == nil then
+                vim.notify("Scene has no parent folder", vim.log.levels.ERROR)
+                return
+              end
+
+              parent = item.parent_id
               position = item.position + 1
-            elseif item.kind == "chapter" and kind == "scene" then
-              root_path = item.path
-              position = 1
-            elseif item.kind == "chapter" and kind == "folder" then
-              root_path = util.parent_path(item.path)
-              position = item.position + 1
+            elseif item.kind == "chapter" then
+              if kind == "scene" then
+                parent = item.id
+                position = 1
+              else
+                parent = item.parent_id or 0
+                position = item.position + 1
+              end
             else
-              vim.notify("Cannot add item beneath " .. tostring(item.kind))
+              vim.notify("Cannot add an item relative to " .. tostring(item.kind), vim.log.levels.ERROR)
               return
             end
 
@@ -590,10 +614,12 @@ function M.open()
               name,
               "-p",
               tostring(position),
+              "-f",
+              tostring(parent),
               "-j",
             }
 
-            local result = process.run_json(command, root_path)
+            local result = process.run_json(command, cwd)
 
             if result == nil then
               return
@@ -846,6 +872,7 @@ function M.open()
           ["h"] = "draftcat_noop",
           ["l"] = "confirm",
           ["d"] = "delete",
+          ["Z"] = "draftcat_debug",
           ["a"] = "add",
           ["r"] = "rename",
           ["p"] = "reposition",
