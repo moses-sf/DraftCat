@@ -183,8 +183,19 @@ var deleteCmd = &cobra.Command{
 			}
 			return
 		}
+		message := fmt.Sprintf("draftcat|backup|delete|%s|%d", deleteOpts.ItemType, deleteOpts.ID)
+		err = utilities.CommitBackupSnapshot(message)
+		if err != nil {
+			if j {
+				log.Fatalf(`{"status":false, "error":"%s"}`, err)
+			} else {
+				log.Fatal(err)
+			}
+			return
+		}
 		output, err := DeleteItem(deleteOpts)
 		if err != nil {
+			err = utilities.RestoreChanges()
 			if j {
 				log.Fatalf(`{"status":false, "error":"%s"}`, err)
 			} else {
