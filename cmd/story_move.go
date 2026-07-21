@@ -7,7 +7,6 @@ package cmd
 import (
 	"database/sql"
 	"fmt"
-	"os"
 
 	"github.com/moses-sf/DraftCat/utilities"
 	"github.com/spf13/cobra"
@@ -27,6 +26,12 @@ var moveCmd = &cobra.Command{
 	},
 }
 
+type MoveSceneOptions struct {
+	SceneID      int
+	OldChapterID int
+	NewChapterID int
+}
+
 var moveSceneCmd = &cobra.Command{
 	Use:   "scene",
 	Short: "move a scene's position or folder and position",
@@ -37,9 +42,16 @@ var moveSceneCmd = &cobra.Command{
 			fmt.Println(err)
 			return
 		}
-		fmt.Println("Moving Scene")
-		if !cmd.Flags().Changed("position") || !cmd.Flags().Changed("sceneID") {
-			fmt.Println("Position or current Scene ID not defined")
+		j, err := cmd.Flags().GetBool("json")
+		if err != nil {
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
+		}
+		if err != nil {
+			if j {
+				fmt.Printf(`{"status":false, "error":"%s"}`, err)
+			} else {
+				fmt.Printf("%s", err)
+			}
 			return
 		}
 	},
@@ -52,7 +64,7 @@ type MoveChapterOptions struct {
 }
 
 var moveFolderCmd = &cobra.Command{
-	Use:   "scene",
+	Use:   "folder",
 	Short: "move a folder's position or to a different folder and position",
 	Long:  "move a folder's position or to a different folder and position",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -61,20 +73,16 @@ var moveFolderCmd = &cobra.Command{
 			fmt.Println(err)
 			return
 		}
-		cwd, err := os.Getwd()
+		j, err := cmd.Flags().GetBool("json")
 		if err != nil {
-			fmt.Println(err)
-			return
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
 		}
-
-		chapter, err := utilities.LoadChapterToml(cwd)
 		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		fmt.Println("Moving Folder", chapter.ParentID)
-		if !cmd.Flags().Changed("position") || !cmd.Flags().Changed("currentFolderID") {
-			fmt.Println("Position or current Folder ID not defined")
+			if j {
+				fmt.Printf(`{"status":false, "error":"%s"}`, err)
+			} else {
+				fmt.Printf("%s", err)
+			}
 			return
 		}
 	},
@@ -86,10 +94,10 @@ func initMoveCmd() {
 	moveCmd.AddCommand(moveSceneCmd)
 	moveCmd.AddCommand(moveFolderCmd)
 
-	moveSceneCmd.Flags().IntP("folderID", "f", 0, "Set the folder to move the scene to, 0 refers to the root folder")
+	moveSceneCmd.Flags().IntP("folderID", "n", 0, "Set the folder to move the scene to, 0 refers to the root folder")
 	moveSceneCmd.Flags().IntP("sceneID", "s", 0, "Scene ID to be moved")
-	moveSceneCmd.Flags().IntP("position", "p", 0, "Set the position of the scene in the folder")
-	moveFolderCmd.Flags().IntP("currentFolderID", "c", 0, "Current Folder ID to be moved")
-	moveFolderCmd.Flags().IntP("newFolderID", "n", 0, "Set the folder to move the folder to, 0 refers to the root folder")
-	moveFolderCmd.Flags().IntP("position", "p", 0, "Set the position of the folder in the folder")
+	moveSceneCmd.Flags().BoolP("json", "j", false, "Output Json")
+	moveFolderCmd.Flags().IntP("currentFolderID", "f", 0, "Current Folder ID to be moved")
+	moveFolderCmd.Flags().IntP("folderID", "n", 0, "Set the folder to move the folder to, 0 refers to the root folder")
+	moveFolderCmd.Flags().BoolP("json", "j", false, "Output Json")
 }
