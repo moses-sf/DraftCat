@@ -94,6 +94,15 @@ func UpdateScenePathAndChapter(db *sql.DB, scene Scene) error {
 	return err
 }
 
+func UpdateScenePathAndChapterAndPosition(db *sql.DB, scene Scene) error {
+	_, err := db.Exec(`UPDATE scenes
+		SET path = ?,
+		    chapter_id = ?,
+				position = ?
+		WHERE id = ?`, scene.Path, scene.ChapterID, scene.Position, scene.ID)
+	return err
+}
+
 func UpdateScenePathAndName(db *sql.DB, scene Scene) error {
 	_, err := db.Exec(`UPDATE scenes
 		SET path = ?,

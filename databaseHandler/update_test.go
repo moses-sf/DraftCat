@@ -355,3 +355,25 @@ func TestUpdatePathAndChapter(t *testing.T) {
 		t.Fatalf("error in update: %+v", scene)
 	}
 }
+
+func TestUpdatePathAndChapterAndPosition(t *testing.T) {
+	db := basicDBSetup(t)
+	scene, err := GetScene(db, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scene.Path = "test"
+	scene.ChapterID = 2
+	scene.Position = 5
+	err = UpdateScenePathAndChapterAndPosition(db, scene)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scene, err = GetScene(db, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scene.Path != "test" || scene.ChapterID != 2 || scene.Position != 5 {
+		t.Fatalf("error in update: %+v", scene)
+	}
+}

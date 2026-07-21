@@ -83,6 +83,10 @@ func MoveScene(db *sql.DB, moveSceneOptions MoveSceneOptions) error {
 	if err != nil {
 		return err
 	}
+	maxPosition, err := databasehandler.GetMaxScenePosition(db, newChapter.ID)
+	if err != nil {
+		return err
+	}
 	newPath := filepath.Join(newChapter.Path, filepath.Base(scene.Path))
 	if utilities.FileExists(newPath) {
 		return errors.New("scene of same name exists at other chapter")
@@ -93,7 +97,8 @@ func MoveScene(db *sql.DB, moveSceneOptions MoveSceneOptions) error {
 	}
 	scene.Path = newPath
 	scene.ChapterID = newChapter.ID
-	err = databasehandler.UpdateScenePathAndChapter(db, scene)
+	scene.Position = maxPosition + 1
+	err = databasehandler.UpdateScenePathAndChapterAndPosition(db, scene)
 	if err != nil {
 		return err
 	}
@@ -162,9 +167,9 @@ var moveSceneCmd = &cobra.Command{
 }
 
 type MoveChapterOptions struct {
-	ID       int
-	ParentID sql.NullInt64
-	Position int
+	ID          int
+	ParentID    sql.NullInt64
+	NewParentID sql.NullInt64
 }
 
 var moveFolderCmd = &cobra.Command{
