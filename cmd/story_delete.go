@@ -195,7 +195,10 @@ var deleteCmd = &cobra.Command{
 		}
 		output, err := DeleteItem(deleteOpts)
 		if err != nil {
-			err = utilities.RestoreChanges()
+			errRestore := utilities.RestoreChanges()
+			if errRestore != nil {
+				err = fmt.Errorf("%w-%w", err, errRestore)
+			}
 			if j {
 				log.Fatalf(`{"status":false, "error":"%s"}`, err)
 			} else {

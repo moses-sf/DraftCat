@@ -9,7 +9,7 @@ import (
 	"errors"
 )
 
-func UpdateChapterPathAndName(db *sql.DB, chapter *Chapter) error {
+func UpdateChapterPathAndName(db *sql.DB, chapter Chapter) error {
 	_, err := db.Exec(`UPDATE chapters
 		SET path = ?,
 		name = ?
@@ -17,7 +17,7 @@ func UpdateChapterPathAndName(db *sql.DB, chapter *Chapter) error {
 	return err
 }
 
-func UpdateChapterPath(db *sql.DB, chapter *Chapter) error {
+func UpdateChapterPath(db *sql.DB, chapter Chapter) error {
 	_, err := db.Exec(`UPDATE chapters
 		SET path = ?
 		WHERE id =?`, chapter.Path, chapter.ID)
@@ -79,14 +79,22 @@ func UpdateChapterPositionDecrease(db *sql.DB, chapterID, oldPosition, newPositi
 	}
 }
 
-func UpdateScenePath(db *sql.DB, scene *Scene) error {
+func UpdateScenePath(db *sql.DB, scene Scene) error {
 	_, err := db.Exec(`UPDATE scenes
 		SET path = ?
 		WHERE id = ?`, scene.Path, scene.ID)
 	return err
 }
 
-func UpdateScenePathAndName(db *sql.DB, scene *Scene) error {
+func UpdateScenePathAndChapter(db *sql.DB, scene Scene) error {
+	_, err := db.Exec(`UPDATE scenes
+		SET path = ?,
+		    chapter_id = ?
+		WHERE id = ?`, scene.Path, scene.ChapterID, scene.ID)
+	return err
+}
+
+func UpdateScenePathAndName(db *sql.DB, scene Scene) error {
 	_, err := db.Exec(`UPDATE scenes
 		SET path = ?,
 		name = ?

@@ -86,6 +86,11 @@ func GetRelativeRootPath() (string, error) {
 	}
 }
 
+func EncodeChapterToml(root string, data ChapterMetaData) error {
+	chapterTomlPath := filepath.Join(root, ".chapter.toml")
+	return EncodeToml(chapterTomlPath, data)
+}
+
 func EncodeToml(path string, data any) error {
 	buf := new(bytes.Buffer)
 	encoder := toml.NewEncoder(buf)

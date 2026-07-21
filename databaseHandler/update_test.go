@@ -11,7 +11,7 @@ import (
 
 func TestChapterPathAndNameChange(t *testing.T) {
 	db := basicDBSetup(t)
-	err := UpdateChapterPathAndName(db, &Chapter{
+	err := UpdateChapterPathAndName(db, Chapter{
 		ID:   1,
 		Name: "TestUpdate",
 		Path: "TestUpdate/",
@@ -36,7 +36,7 @@ func TestChapterPathAndNameChange(t *testing.T) {
 
 func TestChapterPathChange(t *testing.T) {
 	db := basicDBSetup(t)
-	err := UpdateChapterPath(db, &Chapter{
+	err := UpdateChapterPath(db, Chapter{
 		ID:   1,
 		Name: "TestUpdate",
 		Path: "TestUpdate/",
@@ -57,7 +57,7 @@ func TestChapterPathChange(t *testing.T) {
 
 func TestScenePathChange(t *testing.T) {
 	db := basicDBSetup(t)
-	err := UpdateScenePath(db, &Scene{
+	err := UpdateScenePath(db, Scene{
 		ID:   1,
 		Path: "TestUpdate/scene.md",
 	})
@@ -77,7 +77,7 @@ func TestScenePathChange(t *testing.T) {
 
 func TestSceneRename(t *testing.T) {
 	db := basicDBSetup(t)
-	err := UpdateScenePathAndName(db, &Scene{
+	err := UpdateScenePathAndName(db, Scene{
 		ID:   1,
 		Name: "TestUpdate",
 		Path: "TestUpdate/TestUpdate.md",
@@ -332,5 +332,26 @@ func TestChaptertoggleCompile(t *testing.T) {
 	}
 	if chapter.Compile {
 		t.Fatal("Chapter didn't toggle")
+	}
+}
+
+func TestUpdatePathAndChapter(t *testing.T) {
+	db := basicDBSetup(t)
+	scene, err := GetScene(db, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scene.Path = "test"
+	scene.ChapterID = 2
+	err = UpdateScenePathAndChapter(db, scene)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scene, err = GetScene(db, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scene.Path != "test" || scene.ChapterID != 2 {
+		t.Fatalf("error in update: %+v", scene)
 	}
 }

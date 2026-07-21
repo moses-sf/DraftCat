@@ -258,7 +258,10 @@ var addFolderCmd = &cobra.Command{
 		}
 		err = AddFolder(db, folderOpts)
 		if err != nil {
-			err = utilities.RestoreChanges()
+			errRestore := utilities.RestoreChanges()
+			if errRestore != nil {
+				err = fmt.Errorf("%w-%w", err, errRestore)
+			}
 			fmt.Printf(`{"status":true, "error":"%s"}`, err)
 			return
 		}
@@ -331,6 +334,9 @@ func AddScene(db *sql.DB, sceneOpts AddSceneOptions) error {
 	}
 
 	scenePath := filepath.Join(chapter.Path, sceneOpts.Name+".md")
+	if utilities.FileExists(scenePath) {
+		return errors.New("scene of this name exists")
+	}
 	err = CreateScene(scenePath)
 	if err != nil {
 		return err
@@ -398,7 +404,10 @@ var addSceneCmd = &cobra.Command{
 		}
 		err = AddScene(db, sceneOpts)
 		if err != nil {
-			err = utilities.RestoreChanges()
+			errRestore := utilities.RestoreChanges()
+			if errRestore != nil {
+				err = fmt.Errorf("%w-%w", err, errRestore)
+			}
 			if j {
 				fmt.Printf(`{"state":false, "error":"%s"}`, err)
 				return

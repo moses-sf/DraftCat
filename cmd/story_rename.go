@@ -56,7 +56,7 @@ func ChapterUpdateFromRoot(db *sql.DB, rootPath string, id sql.NullInt64) ([]*Re
 		})
 		for _, scene := range chapterToml.Scenes {
 			scene.Path = filepath.Join(newFolderPath, fmt.Sprintf("%s%s", scene.Name, ".md"))
-			s := &databasehandler.Scene{
+			s := databasehandler.Scene{
 				ID:   scene.ID,
 				Path: scene.Path,
 			}
@@ -133,7 +133,7 @@ func RenameFolder(folderOpts *FolderRenameOptions) ([]*RenameOutcome, error) {
 	})
 	for _, scene := range chapterToml.Scenes {
 		scene.Path = filepath.Join(newFolderPath, fmt.Sprintf("%s%s", scene.Name, ".md"))
-		s := &databasehandler.Scene{
+		s := databasehandler.Scene{
 			ID:   scene.ID,
 			Path: scene.Path,
 		}
@@ -266,7 +266,7 @@ func RenameScene(sceneOpts *SceneRenameOptions) (string, error) {
 		if scene.ID == sceneOpts.SceneID {
 			scene.Name = sceneOpts.Name
 			scene.Path = newPath
-			err = databasehandler.UpdateScenePathAndName(db, &databasehandler.Scene{
+			err = databasehandler.UpdateScenePathAndName(db, databasehandler.Scene{
 				ID:   sceneOpts.SceneID,
 				Name: scene.Name,
 				Path: newPath,
@@ -328,7 +328,10 @@ var renameSceneCmd = &cobra.Command{
 		}
 		path, err := RenameSceneCommand(cmd)
 		if err != nil {
-			err = utilities.RestoreChanges()
+			errRestore := utilities.RestoreChanges()
+			if errRestore != nil {
+				err = fmt.Errorf("%w-%w", err, errRestore)
+			}
 			if err != nil {
 				log.Fatalf(`{"status":false, "error":"FATAL %s"}`, err)
 			}

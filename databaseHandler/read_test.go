@@ -287,3 +287,14 @@ func TestChapterSelectWithParent(t *testing.T) {
 		t.Fatalf("Incorrect number of chapters 2: %d", len(chapters))
 	}
 }
+
+func TestDescendantRead(t *testing.T) {
+	db := basicDBSetup(t)
+	descendants, err := GetChapterDescendants(db, 1)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(descendants) != 4 {
+		t.Fatalf("Incorrect number of descendants: %v", descendants)
+	}
+}

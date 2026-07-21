@@ -10,23 +10,26 @@ import (
 )
 
 type Chapter struct {
-	ID        int
-	ParentID  sql.NullInt64
-	Name      string
-	Compile   bool
-	Path      string
-	Position  int
-	WordCount int
+	ID            int
+	ParentID      sql.NullInt64
+	Name          string
+	Compile       bool
+	Path          string
+	Position      int
+	WordCount     int
+	AncestorIDs   []int
+	DescendantIDs []int
 }
 
 type Scene struct {
-	ID        int
-	ChapterID int
-	Compile   bool
-	Name      string
-	Path      string
-	Position  int
-	WordCount int
+	ID          int
+	ChapterID   int
+	Compile     bool
+	Name        string
+	Path        string
+	Position    int
+	WordCount   int
+	AncestorIDs []int
 }
 
 type SceneNode struct {
@@ -95,6 +98,8 @@ func MapNodes(chapters []Chapter, scenes []Scene) (*ChapterNode, error) {
 	}
 
 	for _, s := range scenes {
+		s.AncestorIDs = append(s.AncestorIDs, nodeMap[s.ChapterID].Chapter.AncestorIDs...)
+		s.AncestorIDs = append(s.AncestorIDs, nodeMap[s.ChapterID].Chapter.ID)
 		sceneNode := &SceneNode{
 			Scene: s,
 			Depth: 0,

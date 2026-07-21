@@ -35,8 +35,8 @@ func GetMaxScenePosition(db *sql.DB, chapter int) (int, error) {
 	return maxPosition, nil
 }
 
-func GetChapter(db *sql.DB, id int) (*Chapter, error) {
-	chapter := &Chapter{}
+func GetChapter(db *sql.DB, id int) (Chapter, error) {
+	chapter := Chapter{}
 	res := db.QueryRow("SELECT id, parent_id, name, compile, path, position, word_count FROM chapters WHERE id=?", id)
 	err := res.Scan(
 		&chapter.ID,
@@ -48,13 +48,13 @@ func GetChapter(db *sql.DB, id int) (*Chapter, error) {
 		&chapter.WordCount,
 	)
 	if err != nil {
-		return nil, err
+		return Chapter{}, err
 	}
 	return chapter, nil
 }
 
-func GetChaptersWithParent(db *sql.DB, parentID sql.NullInt64) ([]*Chapter, error) {
-	chapters := make([]*Chapter, 0)
+func GetChaptersWithParent(db *sql.DB, parentID sql.NullInt64) ([]Chapter, error) {
+	chapters := make([]Chapter, 0)
 	var res *sql.Rows
 	var err error
 	if parentID.Valid {
@@ -71,7 +71,7 @@ func GetChaptersWithParent(db *sql.DB, parentID sql.NullInt64) ([]*Chapter, erro
 		}
 	}()
 	for res.Next() {
-		chapter := &Chapter{}
+		chapter := Chapter{}
 		err = res.Scan(
 			&chapter.ID,
 			&chapter.ParentID,
@@ -91,6 +91,11 @@ func GetChaptersWithParent(db *sql.DB, parentID sql.NullInt64) ([]*Chapter, erro
 		return nil, err
 	}
 	return chapters, nil
+}
+
+type TreeList struct {
+	Ancestors   []int
+	Descendants []int
 }
 
 func GetChapterNodes(db *sql.DB) ([]Chapter, error) {
@@ -124,11 +129,51 @@ func GetChapterNodes(db *sql.DB) ([]Chapter, error) {
 	if err := res.Err(); err != nil {
 		return nil, err
 	}
+	chapterMap := make(map[int]*TreeList, 0)
+	for _, chapter := range chapters {
+		if _, ok := chapterMap[chapter.ID]; !ok {
+			chapterMap[chapter.ID] = &TreeList{
+				Ancestors:   make([]int, 0),
+				Descendants: make([]int, 0),
+			}
+		}
+		if chapter.ParentID.Valid {
+			if _, ok := chapterMap[int(chapter.ParentID.Int64)]; !ok {
+				chapterMap[int(chapter.ParentID.Int64)] = &TreeList{
+					Ancestors:   make([]int, 0),
+					Descendants: make([]int, 0),
+				}
+			}
+			chapterMap[chapter.ID].Ancestors = append(chapterMap[chapter.ID].Ancestors, int(chapter.ParentID.Int64))
+			chapterMap[chapter.ID].Ancestors = append(
+				chapterMap[chapter.ID].Ancestors,
+				chapterMap[int(chapter.ParentID.Int64)].Ancestors...,
+			)
+			for _, ancestorID := range chapterMap[chapter.ID].Ancestors {
+				chapterMap[ancestorID].Descendants = append(
+					chapterMap[ancestorID].Descendants,
+					chapter.ID,
+				)
+			}
+		}
+	}
+	for index := range chapters {
+		chapters[index].AncestorIDs = append(
+			chapters[index].AncestorIDs,
+			chapterMap[chapters[index].ID].Ancestors...,
+		)
+
+		chapters[index].DescendantIDs = append(
+			chapters[index].DescendantIDs,
+			chapterMap[chapters[index].ID].Descendants...,
+		)
+	}
+
 	return chapters, nil
 }
 
-func GetScene(db *sql.DB, id int) (*Scene, error) {
-	scene := &Scene{}
+func GetScene(db *sql.DB, id int) (Scene, error) {
+	scene := Scene{}
 	res := db.QueryRow("SELECT id, chapter_id, name, compile, path, position, word_count FROM scenes WHERE id=?", id)
 	err := res.Scan(
 		&scene.ID,
@@ -140,7 +185,7 @@ func GetScene(db *sql.DB, id int) (*Scene, error) {
 		&scene.WordCount,
 	)
 	if err != nil {
-		return nil, err
+		return Scene{}, err
 	}
 	return scene, nil
 }
@@ -211,4 +256,54 @@ func GetSceneNodes(db *sql.DB) ([]Scene, error) {
 		return nil, err
 	}
 	return scenes, nil
+}
+
+func GetChapterDescendants(db *sql.DB, chapterID int) ([]int, error) {
+	descendants := make([]int, 0)
+	res, err := db.Query(`
+		WITH RECURSIVE descendants AS (
+			SELECT
+		    child.id,
+		    child.parent_id,
+		    1 as depth
+		  FROM chapters AS current
+		  JOIN chapters AS child
+		    ON current.id = child.parent_id
+		  WHERE current.id = ?
+
+		  UNION ALL
+
+		  SELECT 
+				child.id,
+				child.parent_id,
+		    descendants.depth + 1
+		  FROM chapters AS child
+		  JOIN descendants
+		    ON child.parent_id == descendants.id
+		)
+		SELECT id
+		FROM descendants
+		ORDER BY depth DESC`, chapterID)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if closeErr := res.Close(); closeErr != nil {
+			fmt.Println("error closing chapter rows:", closeErr)
+		}
+	}()
+
+	for res.Next() {
+		id := 0
+		err = res.Scan(&id)
+		if err != nil {
+			return nil, err
+		}
+		descendants = append(descendants, id)
+	}
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+	return descendants, nil
 }

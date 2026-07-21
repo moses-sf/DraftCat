@@ -30,6 +30,8 @@ local function build_explorer_items(data)
     table.insert(items, {
       id = chapter.ID,
       parent_id = util.sql_null_int_value(chapter.ParentID),
+      ancestor_ids = chapter.AncestorIDs,
+      descendant_ids = chapter.DescendantIDs,
       position = chapter.Position,
       compile = chapter.Compile,
       text = chapter.Name,
@@ -54,6 +56,7 @@ local function build_explorer_items(data)
       if scene ~= nil then
         table.insert(items, {
           id = scene.ID,
+          ancestor_ids = scene.AncestorIDs,
           parent_id = scene.ChapterID,
           compile = scene.Compile,
           text = scene.Name,
@@ -125,6 +128,12 @@ local function render_item(item)
     end
   elseif state.picker_mode == "reroot" then
     if item.kind == "root" then
+      if state.selected_kind == "scene" then
+        return {
+          { " ", "Directory" },
+          { item.text },
+        }
+      end
       return {
         { "0  ", "Directory" },
         { item.text },
@@ -133,10 +142,25 @@ local function render_item(item)
 
     if item.kind == "chapter" then
       local icon = item.rooted and " " or " "
-      local output_text = {
-        item.id .. " " .. icon,
-        "Directory",
-      }
+      local output_text
+      if item.ancestor_ids ~= vim.NIL and state.selected_kind == "chapter" then
+        if vim.tbl_contains(item.ancestor_ids, state.selected_id) then
+          output_text = {
+            " " .. icon,
+            "Directory",
+          }
+        else
+          output_text = {
+            item.id .. " " .. icon,
+            "Directory",
+          }
+        end
+      else
+        output_text = {
+          item.id .. " " .. icon,
+          "Directory",
+        }
+      end
 
       if item.id == state.selected_id and item.kind == state.selected_kind then
         output_text = {
@@ -524,6 +548,11 @@ function M.open()
               return
             end
 
+            if not result.status then
+              vim.notify(vim.inspect(result.error))
+              return
+            end
+
             data, base_items = refresh_explorer_data(picker, cwd, base_items, items, item)
           end)
         end,
@@ -625,6 +654,11 @@ function M.open()
               return
             end
 
+            if not result.status then
+              vim.notify(vim.inspect(result.error))
+              return
+            end
+
             data, base_items = refresh_explorer_data(picker, cwd, base_items, items, item)
           end)
         end,
@@ -666,6 +700,12 @@ function M.open()
               return
             end
 
+            if id == item.parent_id or (id == 0 and item.parent_id == nil) then
+              vim.notify("Can't reroot to the same folder")
+              reset_picker_normal(picker, item)
+              return
+            end
+
             if id == item.id then
               vim.notify("Can't reroot a folder to itself")
               reset_picker_normal(picker, item)
@@ -674,14 +714,19 @@ function M.open()
 
             local kind, id_flag = get_kind_and_flag(item)
 
+            if kind == "scene" and id == 0 then
+              vim.notify("Cannot put a scene in root", vim.log.levels.ERROR)
+              return
+            end
+
             local command = {
               "draftcat",
               "story",
-              "rename",
+              "move",
               kind,
               id_flag,
               tostring(item.id),
-              "-i",
+              "-n",
               tostring(id),
               "-j",
             }

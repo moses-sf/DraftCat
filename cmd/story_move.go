@@ -6,8 +6,12 @@ package cmd
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
+	databasehandler "github.com/moses-sf/DraftCat/databaseHandler"
 	"github.com/moses-sf/DraftCat/utilities"
 	"github.com/spf13/cobra"
 )
@@ -32,6 +36,82 @@ type MoveSceneOptions struct {
 	NewChapterID int
 }
 
+func GenerateMoveSceneOptions(db *sql.DB, cmd *cobra.Command, args []string) (MoveSceneOptions, error) {
+	sceneID, err := cmd.Flags().GetInt("sceneID")
+	if err != nil {
+		return MoveSceneOptions{}, err
+	}
+	folderID, err := cmd.Flags().GetInt("folderID")
+	if err != nil {
+		return MoveSceneOptions{}, err
+	}
+	if sceneID <= 0 {
+		return MoveSceneOptions{}, errors.New("scene ID cannot be less than 1")
+	}
+	if folderID <= 0 {
+		return MoveSceneOptions{}, errors.New("target of reroot cannot be root or less than 0")
+	}
+	scene, err := databasehandler.GetScene(db, sceneID)
+	if err != nil {
+		return MoveSceneOptions{}, err
+	}
+	return MoveSceneOptions{
+		SceneID:      sceneID,
+		OldChapterID: scene.ChapterID,
+		NewChapterID: folderID,
+	}, nil
+}
+
+func MoveScene(db *sql.DB, moveSceneOptions MoveSceneOptions) error {
+	scene, err := databasehandler.GetScene(db, moveSceneOptions.SceneID)
+	if err != nil {
+		return err
+	}
+	oldChapter, err := databasehandler.GetChapter(db, moveSceneOptions.OldChapterID)
+	if err != nil {
+		return err
+	}
+	oldChapterToml, err := utilities.LoadChapterToml(oldChapter.Path)
+	if err != nil {
+		return err
+	}
+	newChapter, err := databasehandler.GetChapter(db, moveSceneOptions.NewChapterID)
+	if err != nil {
+		return err
+	}
+	newChapterToml, err := utilities.LoadChapterToml(newChapter.Path)
+	if err != nil {
+		return err
+	}
+	newPath := filepath.Join(newChapter.Path, filepath.Base(scene.Path))
+	if utilities.FileExists(newPath) {
+		return errors.New("scene of same name exists at other chapter")
+	}
+	err = os.Rename(scene.Path, newPath)
+	if err != nil {
+		return err
+	}
+	scene.Path = newPath
+	scene.ChapterID = newChapter.ID
+	err = databasehandler.UpdateScenePathAndChapter(db, scene)
+	if err != nil {
+		return err
+	}
+	err = oldChapterToml.RebuildSceneMetadata(db)
+	if err != nil {
+		return err
+	}
+	err = newChapterToml.RebuildSceneMetadata(db)
+	if err != nil {
+		return err
+	}
+	err = utilities.EncodeChapterToml(oldChapter.Path, *oldChapterToml)
+	if err != nil {
+		return err
+	}
+	return utilities.EncodeChapterToml(newChapter.Path, *newChapterToml)
+}
+
 var moveSceneCmd = &cobra.Command{
 	Use:   "scene",
 	Short: "move a scene's position or folder and position",
@@ -46,7 +126,30 @@ var moveSceneCmd = &cobra.Command{
 		if err != nil {
 			fmt.Printf(`{"status":false, "error":"%s"}`, err)
 		}
+		db, err := utilities.OpenDB()
 		if err != nil {
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
+		}
+		defer func() {
+			if closeErr := db.Close(); closeErr != nil {
+				fmt.Println("Error closing DB:", closeErr)
+			}
+		}()
+		moveSceneOptions, err := GenerateMoveSceneOptions(db, cmd, args)
+		if err != nil {
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
+		}
+		message := fmt.Sprintf("draftcat|backup|moveScene|%d|%d|%d", moveSceneOptions.SceneID, moveSceneOptions.OldChapterID, moveSceneOptions.NewChapterID)
+		err = utilities.CommitBackupSnapshot(message)
+		if err != nil {
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
+		}
+		err = MoveScene(db, moveSceneOptions)
+		if err != nil {
+			errRestore := utilities.RestoreChanges()
+			if errRestore != nil {
+				err = fmt.Errorf("%w-%w", err, errRestore)
+			}
 			if j {
 				fmt.Printf(`{"status":false, "error":"%s"}`, err)
 			} else {
@@ -54,6 +157,7 @@ var moveSceneCmd = &cobra.Command{
 			}
 			return
 		}
+		fmt.Printf(`{"status":true, "error":""}`)
 	},
 }
 
