@@ -335,7 +335,7 @@ func TestChaptertoggleCompile(t *testing.T) {
 	}
 }
 
-func TestUpdatePathAndChapter(t *testing.T) {
+func TestUpdateScenePathAndChapter(t *testing.T) {
 	db := basicDBSetup(t)
 	scene, err := GetScene(db, 1)
 	if err != nil {
@@ -356,7 +356,7 @@ func TestUpdatePathAndChapter(t *testing.T) {
 	}
 }
 
-func TestUpdatePathAndChapterAndPosition(t *testing.T) {
+func TestUpdateScenePathAndChapterAppendPosition(t *testing.T) {
 	db := basicDBSetup(t)
 	scene, err := GetScene(db, 1)
 	if err != nil {
@@ -365,7 +365,7 @@ func TestUpdatePathAndChapterAndPosition(t *testing.T) {
 	scene.Path = "test"
 	scene.ChapterID = 2
 	scene.Position = 5
-	err = UpdateScenePathAndChapterAndPosition(db, scene)
+	err = UpdateScenePathChapterAppendPosition(db, scene)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -375,5 +375,28 @@ func TestUpdatePathAndChapterAndPosition(t *testing.T) {
 	}
 	if scene.Path != "test" || scene.ChapterID != 2 || scene.Position != 5 {
 		t.Fatalf("error in update: %+v", scene)
+	}
+}
+
+func TestUpdateChapterParentPathAppendPosition(t *testing.T) {
+	db := basicDBSetup(t)
+	chapter, err := GetChapter(db, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chapter.Path = "test"
+	chapter.ParentID.Int64 = 2
+	chapter.ParentID.Valid = true
+	chapter.Position = 5
+	err = UpdateChapterParentPathAppendPosition(db, chapter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chapter, err = GetChapter(db, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chapter.Path != "test" || chapter.ParentID.Int64 != 2 || chapter.Position != 5 {
+		t.Fatalf("error in update: %+v", chapter)
 	}
 }

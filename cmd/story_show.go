@@ -34,7 +34,7 @@ func BuildStoryProject() (*utilities.StoryStructure, error) {
 	}()
 	chapters, err := databasehandler.GetChapterNodes(db)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failure in chapter node retrieval- %w", err)
 	}
 
 	scenes, err := databasehandler.GetSceneNodes(db)
@@ -43,7 +43,7 @@ func BuildStoryProject() (*utilities.StoryStructure, error) {
 	}
 	rootNode, err := databasehandler.MapNodes(chapters, scenes)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failure in mapping nodes- %w", err)
 	}
 	storyConfig := &utilities.StoryConfig{}
 	err = storyConfig.LoadConfig(root)

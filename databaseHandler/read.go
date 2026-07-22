@@ -37,10 +37,11 @@ func GetMaxScenePosition(db *sql.DB, chapter int) (int, error) {
 
 func GetChapter(db *sql.DB, id int) (Chapter, error) {
 	chapter := Chapter{}
-	res := db.QueryRow("SELECT id, parent_id, name, compile, path, position, word_count FROM chapters WHERE id=?", id)
+	res := db.QueryRow("SELECT id, parent_id,depth, name, compile, path, position, word_count FROM chapters WHERE id=?", id)
 	err := res.Scan(
 		&chapter.ID,
 		&chapter.ParentID,
+		&chapter.Depth,
 		&chapter.Name,
 		&chapter.Compile,
 		&chapter.Path,
@@ -50,6 +51,100 @@ func GetChapter(db *sql.DB, id int) (Chapter, error) {
 	if err != nil {
 		return Chapter{}, err
 	}
+	return EnrichChapterWithAncestorsAndDescendants(db, chapter)
+}
+
+func EnrichChapterWithAncestorsAndDescendants(db *sql.DB, chapter Chapter) (Chapter, error) {
+	ancestorIDs := make([]int, 0)
+	descendantIDs := make([]int, 0)
+	res, err := db.Query(`
+		WITH RECURSIVE ancestors AS (
+			SELECT parent.id,
+						 parent.parent_id,
+						 1 AS depth
+		  FROM chapters AS current
+			JOIN chapters AS parent
+				ON current.parent_id = parent.id
+			WHERE current.id = ?
+
+			UNION ALL
+
+			SELECT chapters.id,
+						 chapters.parent_id,
+						 ancestors.depth + 1
+			FROM chapters
+			JOIN ancestors
+				ON chapters.id = ancestors.parent_id
+		)
+		SELECT id
+		FROM ancestors
+		ORDER BY id DESC`, chapter.ID)
+	if err != nil {
+		return Chapter{}, err
+	}
+	defer func() {
+		if closeErr := res.Close(); closeErr != nil {
+			fmt.Println("error closing chapter rows:", closeErr)
+		}
+	}()
+	for res.Next() {
+		var ancestor int
+		err = res.Scan(
+			&ancestor,
+		)
+		if err != nil {
+			return Chapter{}, err
+		}
+		ancestorIDs = append(ancestorIDs, ancestor)
+	}
+	if err := res.Err(); err != nil {
+		return Chapter{}, err
+	}
+	res, err = db.Query(`
+		WITH RECURSIVE descendants AS (
+			SELECT child.id,
+						 child.parent_id,
+						 1 AS depth
+		  FROM chapters AS current
+			JOIN chapters AS child
+				ON current.id = child.parent_id
+			WHERE current.id = ?
+
+			UNION ALL
+
+			SELECT chapters.id,
+						 chapters.parent_id,
+						 descendants.depth + 1
+			FROM chapters
+			JOIN descendants
+				ON chapters.parent_id = descendants.id
+		)
+		SELECT id
+		FROM descendants
+		ORDER BY id DESC`, chapter.ID)
+	if err != nil {
+		return Chapter{}, err
+	}
+	defer func() {
+		if closeErr := res.Close(); closeErr != nil {
+			fmt.Println("error closing chapter rows:", closeErr)
+		}
+	}()
+	for res.Next() {
+		var descendant int
+		err = res.Scan(
+			&descendant,
+		)
+		if err != nil {
+			return Chapter{}, err
+		}
+		descendantIDs = append(descendantIDs, descendant)
+	}
+	if err := res.Err(); err != nil {
+		return Chapter{}, err
+	}
+	chapter.AncestorIDs = ancestorIDs
+	chapter.DescendantIDs = descendantIDs
 	return chapter, nil
 }
 
@@ -100,7 +195,7 @@ type TreeList struct {
 
 func GetChapterNodes(db *sql.DB) ([]Chapter, error) {
 	chapters := make([]Chapter, 0)
-	res, err := db.Query(`SELECT id, parent_id, name, compile, path, position, word_count FROM chapters ORDER BY parent_id, position`)
+	res, err := db.Query(`SELECT id, parent_id, name, compile, path, position, word_count FROM chapters ORDER BY depth, parent_id, position`)
 	if err != nil {
 		return nil, err
 	}
@@ -131,19 +226,13 @@ func GetChapterNodes(db *sql.DB) ([]Chapter, error) {
 	}
 	chapterMap := make(map[int]*TreeList, 0)
 	for _, chapter := range chapters {
-		if _, ok := chapterMap[chapter.ID]; !ok {
-			chapterMap[chapter.ID] = &TreeList{
-				Ancestors:   make([]int, 0),
-				Descendants: make([]int, 0),
-			}
+		chapterMap[chapter.ID] = &TreeList{
+			Ancestors:   make([]int, 0),
+			Descendants: make([]int, 0),
 		}
+	}
+	for _, chapter := range chapters {
 		if chapter.ParentID.Valid {
-			if _, ok := chapterMap[int(chapter.ParentID.Int64)]; !ok {
-				chapterMap[int(chapter.ParentID.Int64)] = &TreeList{
-					Ancestors:   make([]int, 0),
-					Descendants: make([]int, 0),
-				}
-			}
 			chapterMap[chapter.ID].Ancestors = append(chapterMap[chapter.ID].Ancestors, int(chapter.ParentID.Int64))
 			chapterMap[chapter.ID].Ancestors = append(
 				chapterMap[chapter.ID].Ancestors,

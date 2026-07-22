@@ -24,6 +24,14 @@ func UpdateChapterPath(db *sql.DB, chapter Chapter) error {
 	return err
 }
 
+func UpdateChapterPathAndDepth(db *sql.DB, chapter Chapter) error {
+	_, err := db.Exec(`UPDATE chapters
+		SET path = ?,
+				depth = ?
+		WHERE id =?`, chapter.Path, chapter.Depth, chapter.ID)
+	return err
+}
+
 func UpdateChapterPosition(db *sql.DB, chapterID, oldPosition, newPosition int, rootID sql.NullInt64) error {
 	if oldPosition == newPosition {
 		return errors.New("old and new position cannot be equal")
@@ -55,6 +63,33 @@ func UpdateChapterPositionIncrease(db *sql.DB, chapterID, oldPosition, newPositi
 		WHERE parent_id IS NULL AND (id = ? OR (position > ? AND position <= ?))`, chapterID, newPosition, oldPosition, newPosition, chapterID, oldPosition, newPosition)
 		return err
 	}
+}
+
+func UpdateChapterParentPathAppendPosition(db *sql.DB, chapter Chapter) error {
+	if chapter.ParentID.Valid {
+		_, err := db.Exec(`
+		UPDATE chapters
+			SET parent_id = ?,
+			 		path = ?,
+					position = ?,
+					depth = ?
+		WHERE id = ?`, chapter.ParentID.Int64, chapter.Path, chapter.Position, chapter.Depth, chapter.ID)
+		if err != nil {
+			return err
+		}
+	} else {
+		_, err := db.Exec(`
+		UPDATE chapters
+			SET parent_id = NULL,
+			 		path = ?,
+					position = ?,
+					depth = ?
+		WHERE id = ?`, chapter.Path, chapter.Position, chapter.Depth, chapter.ID)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func UpdateChapterPositionDecrease(db *sql.DB, chapterID, oldPosition, newPosition int, rootID sql.NullInt64) error {
@@ -94,7 +129,7 @@ func UpdateScenePathAndChapter(db *sql.DB, scene Scene) error {
 	return err
 }
 
-func UpdateScenePathAndChapterAndPosition(db *sql.DB, scene Scene) error {
+func UpdateScenePathChapterAppendPosition(db *sql.DB, scene Scene) error {
 	_, err := db.Exec(`UPDATE scenes
 		SET path = ?,
 		    chapter_id = ?,

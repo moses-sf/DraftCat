@@ -3,6 +3,7 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS chapters (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   parent_id INTEGER,
+  depth INTEGER,
   compile INTEGER NOT NULL DEFAULT 1,
   name TEXT NOT NULL,
   path TEXT NOT NULL,

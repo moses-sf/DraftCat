@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	databasehandler "github.com/moses-sf/DraftCat/databaseHandler"
 	"github.com/moses-sf/DraftCat/utilities"
@@ -55,6 +56,9 @@ func GenerateMoveSceneOptions(db *sql.DB, cmd *cobra.Command, args []string) (Mo
 	if err != nil {
 		return MoveSceneOptions{}, err
 	}
+	if scene.ChapterID == folderID {
+		return MoveSceneOptions{}, errors.New("cannot reroot on the same chapter")
+	}
 	return MoveSceneOptions{
 		SceneID:      sceneID,
 		OldChapterID: scene.ChapterID,
@@ -98,7 +102,7 @@ func MoveScene(db *sql.DB, moveSceneOptions MoveSceneOptions) error {
 	scene.Path = newPath
 	scene.ChapterID = newChapter.ID
 	scene.Position = maxPosition + 1
-	err = databasehandler.UpdateScenePathAndChapterAndPosition(db, scene)
+	err = databasehandler.UpdateScenePathChapterAppendPosition(db, scene)
 	if err != nil {
 		return err
 	}
@@ -166,10 +170,149 @@ var moveSceneCmd = &cobra.Command{
 	},
 }
 
-type MoveChapterOptions struct {
+type MoveFolderOptions struct {
 	ID          int
 	ParentID    sql.NullInt64
 	NewParentID sql.NullInt64
+}
+
+func GenerateMoveFolderOptions(db *sql.DB, cmd *cobra.Command, args []string) (MoveFolderOptions, error) {
+	id, err := cmd.Flags().GetInt("currentFolderID")
+	if err != nil {
+		return MoveFolderOptions{}, err
+	}
+	newFolderID, err := cmd.Flags().GetInt("folderID")
+	if err != nil {
+		return MoveFolderOptions{}, err
+	}
+	chapter, err := databasehandler.GetChapter(db, id)
+	if err != nil {
+		return MoveFolderOptions{}, err
+	}
+	if id == newFolderID {
+		return MoveFolderOptions{}, errors.New("cannot reroot a folder on itself")
+	}
+	oldParentID := 0
+	if chapter.ParentID.Valid {
+		oldParentID = int(chapter.ParentID.Int64)
+	}
+	if oldParentID == newFolderID {
+		return MoveFolderOptions{}, errors.New("cannot reroot a folder to the same parent")
+	}
+	if slices.Contains(chapter.DescendantIDs, newFolderID) {
+		return MoveFolderOptions{}, errors.New("cannot reroot a folder to its descendants")
+	}
+	newParentID := sql.NullInt64{
+		Valid: false,
+	}
+	if newFolderID != 0 {
+		newParentID.Valid = true
+		newParentID.Int64 = int64(newFolderID)
+	}
+	return MoveFolderOptions{
+		ID:          id,
+		ParentID:    chapter.ParentID,
+		NewParentID: newParentID,
+	}, nil
+}
+
+func UpdateChildChapterMove(db *sql.DB, chapter databasehandler.Chapter, root bool) error {
+	var newPathToRoot string
+	chapters, err := databasehandler.GetChaptersWithParent(db, sql.NullInt64{Valid: true, Int64: int64(chapter.ID)})
+	if err != nil {
+		return err
+	}
+	if chapter.ParentID.Valid {
+		parentToml, err := utilities.LoadChapterToml(filepath.Join(chapter.Path, ".."))
+		if err != nil {
+			return fmt.Errorf("%w : %+v", err, chapter)
+		}
+		newPathToRoot = filepath.Join(parentToml.PathToRoot, "..")
+	} else {
+		newPathToRoot = ".."
+	}
+	chapterToml, err := utilities.LoadChapterToml(chapter.Path)
+	if err != nil {
+		return err
+	}
+	chapterToml.ParentID = chapter.ParentID
+	chapterToml.PathToRoot = newPathToRoot
+	chapterToml.Depth = chapter.Depth
+	chapterToml.Position = chapter.Position
+	err = chapterToml.RebuildScenePaths(db, chapter.Path)
+	if err != nil {
+		return err
+	}
+	err = utilities.EncodeChapterToml(chapter.Path, *chapterToml)
+	if err != nil {
+		return err
+	}
+	for _, childChapter := range chapters {
+		childChapter.Path = filepath.Join(chapter.Path, childChapter.Name)
+		childChapter.Depth = chapter.Depth + 1
+		err = databasehandler.UpdateChapterPathAndDepth(db, childChapter)
+		if err != nil {
+			return err
+		}
+		err = UpdateChildChapterMove(db, childChapter, false)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func MoveFolder(db *sql.DB, moveFolderOptions MoveFolderOptions) error {
+	var newParent databasehandler.Chapter
+	var newPath string
+	var depth int
+	chapter, err := databasehandler.GetChapter(db, moveFolderOptions.ID)
+	if err != nil {
+		return err
+	}
+	chapterToml, err := utilities.LoadChapterToml(chapter.Path)
+	if err != nil {
+		return err
+	}
+	maxPosition, err := databasehandler.GetMaxChapterPosition(db, moveFolderOptions.NewParentID)
+	if err != nil {
+		return err
+	}
+	if moveFolderOptions.NewParentID.Valid {
+		newParent, err = databasehandler.GetChapter(db, int(moveFolderOptions.NewParentID.Int64))
+		if err != nil {
+			return err
+		}
+		newPath = filepath.Join(newParent.Path, chapter.Name)
+		if utilities.FolderExists(newPath) {
+			return errors.New("folder with the same name exists in destination, rename or delete the target folder")
+		}
+		depth = newParent.Depth + 1
+
+	} else {
+		newPath = filepath.Join(chapter.Path, chapterToml.PathToRoot, chapter.Name)
+		if utilities.FolderExists(newPath) {
+			return errors.New("folder with the same name exists in root, rename or delete the target folder")
+		}
+		depth = 1
+	}
+	err = os.Rename(chapter.Path, newPath)
+	if err != nil {
+		return err
+	}
+	chapter.Position = maxPosition + 1
+	chapter.Path = newPath
+	chapter.Depth = depth
+	chapter.ParentID = moveFolderOptions.NewParentID
+	err = databasehandler.UpdateChapterParentPathAppendPosition(db, chapter)
+	if err != nil {
+		return err
+	}
+	err = UpdateChildChapterMove(db, chapter, true)
+	if err != nil {
+		return fmt.Errorf("child update error - %w", err)
+	}
+	return nil
 }
 
 var moveFolderCmd = &cobra.Command{
@@ -186,7 +329,25 @@ var moveFolderCmd = &cobra.Command{
 		if err != nil {
 			fmt.Printf(`{"status":false, "error":"%s"}`, err)
 		}
+		db, err := utilities.OpenDB()
 		if err != nil {
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
+		}
+		moveFolderOptions, err := GenerateMoveFolderOptions(db, cmd, args)
+		if err != nil {
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
+		}
+		message := fmt.Sprintf("draftcat|backup|moveFolder|%d|%d|%d", moveFolderOptions.ID, moveFolderOptions.ParentID.Int64, moveFolderOptions.NewParentID.Int64)
+		err = utilities.CommitBackupSnapshot(message)
+		if err != nil {
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
+		}
+		err = MoveFolder(db, moveFolderOptions)
+		if err != nil {
+			errRestore := utilities.RestoreChanges()
+			if errRestore != nil {
+				err = fmt.Errorf("%w-%w", err, errRestore)
+			}
 			if j {
 				fmt.Printf(`{"status":false, "error":"%s"}`, err)
 			} else {
@@ -194,6 +355,7 @@ var moveFolderCmd = &cobra.Command{
 			}
 			return
 		}
+		fmt.Printf(`{"status":true, "error":""}`)
 	},
 }
 

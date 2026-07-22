@@ -31,6 +31,7 @@ func CreateScene(path string) error {
 
 func CreateChapter(db *sql.DB, path, root string, folderOptions AddFolderOptions) error {
 	info, err := os.Stat(path)
+	var depth int
 
 	if err == nil {
 		if !info.IsDir() {
@@ -44,6 +45,15 @@ func CreateChapter(db *sql.DB, path, root string, folderOptions AddFolderOptions
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		return fmt.Errorf("create folder %s: %w", path, err)
 	}
+	if folderOptions.ParentID.Valid {
+		parent, err := databasehandler.GetChapter(db, int(folderOptions.ParentID.Int64))
+		if err != nil {
+			return fmt.Errorf("could not retrieve parent: %w", err)
+		}
+		depth = parent.Depth + 1
+	} else {
+		depth = 1
+	}
 	newPosition := folderOptions.Position
 	if newPosition == 0 || newPosition > folderOptions.MaxPosition {
 		newPosition = folderOptions.MaxPosition + 1
@@ -51,11 +61,12 @@ func CreateChapter(db *sql.DB, path, root string, folderOptions AddFolderOptions
 	chapID, err := databasehandler.InsertChapterAtPosition(db, databasehandler.ChapterCreate{
 		Name:     folderOptions.Name,
 		ParentID: folderOptions.ParentID,
+		Depth:    depth,
 		Path:     path,
 		Position: newPosition,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("InsertChapter failed: %w", err)
 	}
 	scenePath := filepath.Join(path, "scene.md")
 	err = CreateScene(scenePath)
@@ -75,6 +86,7 @@ func CreateChapter(db *sql.DB, path, root string, folderOptions AddFolderOptions
 	scene = append(scene, utilities.SceneMetaData{
 		ID:       sceneID,
 		Name:     "scene",
+		Compile:  true,
 		Path:     scenePath,
 		Position: 1,
 	})
@@ -82,6 +94,8 @@ func CreateChapter(db *sql.DB, path, root string, folderOptions AddFolderOptions
 		ID:         chapID,
 		Name:       folderOptions.Name,
 		ParentID:   folderOptions.ParentID,
+		Depth:      depth,
+		Compile:    true,
 		PathToRoot: root,
 		Position:   newPosition,
 		Scenes:     scene,
@@ -186,7 +200,7 @@ func AddFolder(db *sql.DB, folderOptions AddFolderOptions) error {
 			return err
 		}
 		path = chapter.Path
-		root = chapterToml.PathToRoot + "/.."
+		root = filepath.Join(chapterToml.PathToRoot, "..")
 	} else {
 		p, err := utilities.GetRelativeRootPath()
 		if err != nil {
@@ -360,6 +374,7 @@ func AddScene(db *sql.DB, sceneOpts AddSceneOptions) error {
 		ID:       sceneID,
 		Name:     sceneOpts.Name,
 		Path:     scenePath,
+		Compile:  true,
 		Position: sceneOpts.Position,
 	})
 

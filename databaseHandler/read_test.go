@@ -298,3 +298,27 @@ func TestDescendantRead(t *testing.T) {
 		t.Fatalf("Incorrect number of descendants: %v", descendants)
 	}
 }
+
+func TestGetChapter(t *testing.T) {
+	db := basicDBSetup(t)
+	chapter, err := GetChapter(db, 1)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(chapter.DescendantIDs) != 4 {
+		t.Fatalf("Incorrect number of descendants: %d", len(chapter.DescendantIDs))
+	}
+	if len(chapter.AncestorIDs) != 0 {
+		t.Fatalf("Incorrect number of ancestors: %d", len(chapter.AncestorIDs))
+	}
+	chapter, err = GetChapter(db, 4)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(chapter.DescendantIDs) != 1 {
+		t.Fatalf("Incorrect number of descendants: %d", len(chapter.DescendantIDs))
+	}
+	if len(chapter.AncestorIDs) != 1 {
+		t.Fatalf("Incorrect number of ancestors: %d", len(chapter.AncestorIDs))
+	}
+}

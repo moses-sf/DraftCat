@@ -13,6 +13,7 @@ type Chapter struct {
 	ID            int
 	ParentID      sql.NullInt64
 	Name          string
+	Depth         int
 	Compile       bool
 	Path          string
 	Position      int
@@ -91,7 +92,7 @@ func MapNodes(chapters []Chapter, scenes []Scene) (*ChapterNode, error) {
 		}
 		node, ok := nodeMap[parentID]
 		if !ok {
-			return nil, fmt.Errorf("missing id in map: %d", parentID)
+			return nil, fmt.Errorf("missing id in parent map: %d", parentID)
 		}
 		node.Chapters = append(node.Chapters, chapterNode)
 		chapterNode.Depth = node.Depth + 1
@@ -106,7 +107,7 @@ func MapNodes(chapters []Chapter, scenes []Scene) (*ChapterNode, error) {
 		}
 		node, ok := nodeMap[s.ChapterID]
 		if !ok {
-			return nil, fmt.Errorf("missing id in map: %d", s.ChapterID)
+			return nil, fmt.Errorf("missing id in chapter map: %d", s.ChapterID)
 		}
 		sceneNode.Depth = node.Depth + 1
 		node.Scenes = append(node.Scenes, sceneNode)

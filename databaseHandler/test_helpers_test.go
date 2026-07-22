@@ -29,6 +29,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 		CREATE TABLE chapters (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			parent_id INTEGER,
+			depth INTEGER,
   		compile INTEGER NOT NULL DEFAULT 1,
 			name TEXT NOT NULL,
 			path TEXT NOT NULL,
@@ -100,6 +101,7 @@ func basicDBSetup(t *testing.T) *sql.DB {
 	parentOneID, err := AddChapter(db, ChapterCreate{
 		Name:     "Chapter 1",
 		Path:     "Chapter 1",
+		Depth:    1,
 		Position: 1,
 		ParentID: sql.NullInt64{Valid: false},
 	})
@@ -110,6 +112,7 @@ func basicDBSetup(t *testing.T) *sql.DB {
 	parentTwoID, err := AddChapter(db, ChapterCreate{
 		Name:     "Chapter 2",
 		Path:     "Chapter 2",
+		Depth:    1,
 		Position: 2,
 		ParentID: sql.NullInt64{Valid: false},
 	})
@@ -120,6 +123,7 @@ func basicDBSetup(t *testing.T) *sql.DB {
 	_, err = AddChapter(db, ChapterCreate{
 		Name:     "Chapter 3",
 		Path:     "Chapter 3",
+		Depth:    1,
 		Position: 3,
 		ParentID: sql.NullInt64{Valid: false},
 	})
@@ -132,6 +136,7 @@ func basicDBSetup(t *testing.T) *sql.DB {
 	chapterOneNotesID, err := AddChapter(db, ChapterCreate{
 		Name:     "Notes",
 		Path:     "Chapter 1/Notes",
+		Depth:    2,
 		Position: 1,
 		ParentID: parentOne,
 	})
@@ -142,6 +147,7 @@ func basicDBSetup(t *testing.T) *sql.DB {
 	_, err = AddChapter(db, ChapterCreate{
 		Name:     "Other",
 		Path:     "Chapter 2/Other",
+		Depth:    2,
 		Position: 1,
 		ParentID: parentTwo,
 	})
@@ -152,6 +158,7 @@ func basicDBSetup(t *testing.T) *sql.DB {
 	_, err = AddChapter(db, ChapterCreate{
 		Name:     "Other2",
 		Path:     "Chapter 2/Other2",
+		Depth:    2,
 		Position: 2,
 		ParentID: parentTwo,
 	})
@@ -162,6 +169,7 @@ func basicDBSetup(t *testing.T) *sql.DB {
 	_, err = InsertChapterAtPosition(db, ChapterCreate{
 		Name:     "Inserted Notes",
 		Path:     "Chapter 1/Inserted Notes",
+		Depth:    2,
 		Position: 1,
 		ParentID: parentOne,
 	})
@@ -171,6 +179,7 @@ func basicDBSetup(t *testing.T) *sql.DB {
 	_, err = AddChapter(db, ChapterCreate{
 		Name:     "Final Notes",
 		Path:     "Chapter 1/Final Notes",
+		Depth:    2,
 		Position: 3,
 		ParentID: parentOne,
 	})
@@ -209,6 +218,7 @@ func basicDBSetup(t *testing.T) *sql.DB {
 	_, err = AddChapter(db, ChapterCreate{
 		Name:     "Notes Embed",
 		Path:     "Chapter 1/Notes/Notes Embed",
+		Depth:    3,
 		Position: 1,
 		ParentID: chapterOneNotes,
 	})
