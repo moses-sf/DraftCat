@@ -144,10 +144,12 @@ var toggleCompileCmd = &cobra.Command{
 		_, err := utilities.IsDraftcatProject()
 		if err != nil {
 			fmt.Printf("%s", err)
+			return
 		}
 		j, err := cmd.Flags().GetBool("json")
 		if err != nil {
 			fmt.Printf(`{"status":false, "error":"%s"}`, err)
+			return
 		}
 		toggleOpts, err := GenerateItemKindOptions(cmd)
 		if err != nil {
@@ -158,20 +160,19 @@ var toggleCompileCmd = &cobra.Command{
 			}
 			return
 		}
-		err = ToggleCompile(toggleOpts)
+		message := fmt.Sprintf("draftcat|backup|toggleCompile|%s|%d", toggleOpts.ItemType, toggleOpts.ID)
+		err = utilities.CommitBackupSnapshot(message)
 		if err != nil {
-			if j {
-				fmt.Printf(`{"status":false, "error":"%s"}`, err)
-			} else {
-				fmt.Println(err)
-			}
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
 			return
 		}
+		err = ToggleCompile(toggleOpts)
 		if err != nil {
+			errRestore := utilities.RestoreChanges()
 			if j {
-				fmt.Printf(`{"status":false, "error":"%s"}`, err)
+				fmt.Printf(`{"status":false, "error":"%s-%s"}`, err, errRestore)
 			} else {
-				fmt.Println(err)
+				fmt.Println(err, errRestore)
 			}
 			return
 		}

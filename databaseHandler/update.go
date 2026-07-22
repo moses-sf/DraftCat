@@ -189,3 +189,27 @@ func UpdateChapterCompile(db *sql.DB, chapterID int, compile bool) error {
 		WHERE id = ?`, compile, chapterID)
 	return err
 }
+
+func UpdateSceneReposition(db *sql.DB, chapterID, position int) error {
+	_, err := db.Exec(`
+		UPDATE scenes
+			SET position = position - 1
+		WHERE chapter_id = ? AND position > ?`, chapterID, position)
+	return err
+}
+
+func UpdateChapterReposition(db *sql.DB, parentID sql.NullInt64, position int) error {
+	if parentID.Valid {
+		_, err := db.Exec(`
+			UPDATE chapters
+			  SET position = position - 1
+			WHERE parent_id = ? AND position > ?`, parentID.Int64, position)
+		return err
+	} else {
+		_, err := db.Exec(`
+			UPDATE chapters
+			  SET position = position - 1
+			WHERE parent_id IS NULL AND position > ?`, position)
+		return err
+	}
+}

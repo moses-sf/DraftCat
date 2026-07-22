@@ -99,6 +99,10 @@ func MoveScene(db *sql.DB, moveSceneOptions MoveSceneOptions) error {
 	if err != nil {
 		return err
 	}
+	err = databasehandler.UpdateSceneReposition(db, oldChapter.ID, scene.Position)
+	if err != nil {
+		return err
+	}
 	scene.Path = newPath
 	scene.ChapterID = newChapter.ID
 	scene.Position = maxPosition + 1
@@ -297,6 +301,10 @@ func MoveFolder(db *sql.DB, moveFolderOptions MoveFolderOptions) error {
 		depth = 1
 	}
 	err = os.Rename(chapter.Path, newPath)
+	if err != nil {
+		return err
+	}
+	err = databasehandler.UpdateChapterReposition(db, moveFolderOptions.ParentID, chapter.Position)
 	if err != nil {
 		return err
 	}
