@@ -86,7 +86,7 @@ func ChapterUpdateFromRoot(db *sql.DB, rootPath string, id sql.NullInt64) ([]*Re
 	return outcomes, nil
 }
 
-func RenameFolder(folderOpts *FolderRenameOptions) ([]*RenameOutcome, error) {
+func RenameFolder(folderOpts FolderRenameOptions) ([]*RenameOutcome, error) {
 	outcomes := make([]*RenameOutcome, 0)
 	db, err := utilities.OpenDB()
 	if err != nil {
@@ -160,32 +160,31 @@ func RenameFolder(folderOpts *FolderRenameOptions) ([]*RenameOutcome, error) {
 	return outcomes, nil
 }
 
-func renameFolderCommand(cmd *cobra.Command) ([]*RenameOutcome, error) {
+func renameFolderCommand(cmd *cobra.Command) (FolderRenameOptions, error) {
 	_, err := utilities.IsDraftcatProject()
 	if err != nil {
-		return nil, err
+		return FolderRenameOptions{}, err
 	}
 	if !cmd.Flags().Changed("name") || !cmd.Flags().Changed("folderID") {
-		return nil, fmt.Errorf("both name and id required")
+		return FolderRenameOptions{}, fmt.Errorf("both name and id required")
 	}
 	name, err := cmd.Flags().GetString("name")
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving name")
+		return FolderRenameOptions{}, fmt.Errorf("error retrieving name")
 	}
 	id, err := cmd.Flags().GetInt("folderID")
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving Folder ID")
+		return FolderRenameOptions{}, fmt.Errorf("error retrieving Folder ID")
 	}
-	folderOpts := &FolderRenameOptions{
+	return FolderRenameOptions{
 		Name:     name,
 		FolderID: id,
-	}
-	return RenameFolder(folderOpts)
+	}, nil
 }
 
 type FolderResponse struct {
 	Status bool             `json:"status"`
-	Error  string           `json:"error"`
+	Error  error            `json:"error"`
 	Path   []*RenameOutcome `json:"path"`
 }
 
@@ -198,11 +197,21 @@ var renameFolderCmd = &cobra.Command{
 		if err != nil {
 			fmt.Printf(`{"status":false, "error":"%s"}`, err)
 		}
-		path, err := renameFolderCommand(cmd)
+		folderOptions, err := renameFolderCommand(cmd)
+		if err != nil {
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
+		}
+		message := fmt.Sprintf("draftcat|backup|renameFolder|%d", folderOptions.FolderID)
+		err = utilities.CommitBackupSnapshot(message)
+		if err != nil {
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
+		}
+		path, err := RenameFolder(folderOptions)
 		response := FolderResponse{}
 		if err != nil {
+			errRestore := utilities.RestoreChanges()
 			response.Status = false
-			response.Error = fmt.Sprintf("%s", err)
+			response.Error = fmt.Errorf("%w-%w", err, errRestore)
 			if jsonValue {
 				j, err := json.Marshal(response)
 				if err != nil {
@@ -230,7 +239,7 @@ type SceneRenameOptions struct {
 	SceneID int
 }
 
-func RenameScene(sceneOpts *SceneRenameOptions) (string, error) {
+func RenameScene(sceneOpts SceneRenameOptions) (string, error) {
 	db, err := utilities.OpenDB()
 	if err != nil {
 		fmt.Println("Could not access story DB, please run drafcat story repair")
@@ -285,27 +294,26 @@ func RenameScene(sceneOpts *SceneRenameOptions) (string, error) {
 	return newPath, nil
 }
 
-func RenameSceneCommand(cmd *cobra.Command) (string, error) {
+func GenerateSceneRenameOptions(cmd *cobra.Command) (SceneRenameOptions, error) {
 	_, err := utilities.IsDraftcatProject()
 	if err != nil {
-		return "", err
+		return SceneRenameOptions{}, err
 	}
 	if !cmd.Flags().Changed("name") || !cmd.Flags().Changed("sceneID") {
-		return "", fmt.Errorf("name and sceneID required")
+		return SceneRenameOptions{}, fmt.Errorf("name and sceneID required")
 	}
 	name, err := cmd.Flags().GetString("name")
 	if err != nil {
-		return "", err
+		return SceneRenameOptions{}, err
 	}
 	id, err := cmd.Flags().GetInt("sceneID")
 	if err != nil {
-		return "", err
+		return SceneRenameOptions{}, err
 	}
-	sceneOpts := &SceneRenameOptions{
+	return SceneRenameOptions{
 		Name:    name,
 		SceneID: id,
-	}
-	return RenameScene(sceneOpts)
+	}, nil
 }
 
 type JSONStatus struct {
@@ -322,11 +330,16 @@ var renameSceneCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf(`{"status":false, "error":"%s"}`, err)
 		}
-		err = utilities.CommitBackupSnapshot("rename")
+		sceneOpts, err := GenerateSceneRenameOptions(cmd)
 		if err != nil {
 			log.Fatalf(`{"status":false, "error":"%s"}`, err)
 		}
-		path, err := RenameSceneCommand(cmd)
+		message := fmt.Sprintf("draftcat|backup|renameScene|%d", sceneOpts.SceneID)
+		err = utilities.CommitBackupSnapshot(message)
+		if err != nil {
+			log.Fatalf(`{"status":false, "error":"%s"}`, err)
+		}
+		path, err := RenameScene(sceneOpts)
 		if err != nil {
 			errRestore := utilities.RestoreChanges()
 			if errRestore != nil {
