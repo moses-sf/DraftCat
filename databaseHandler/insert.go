@@ -11,9 +11,10 @@ import (
 
 type ChapterCreate struct {
 	Name     string
-	ParentID sql.NullInt64
 	Path     string
+	Depth    int
 	Position int
+	ParentID sql.NullInt64
 }
 
 type SceneCreate struct {
@@ -24,8 +25,8 @@ type SceneCreate struct {
 }
 
 func AddChapter(db *sql.DB, chapter ChapterCreate) (int, error) {
-	res, err := db.Exec(`INSERT INTO chapters (name, path, position, parent_id) 
-		VALUES (?, ?, ?, ?)`, chapter.Name, chapter.Path, chapter.Position, chapter.ParentID)
+	res, err := db.Exec(`INSERT INTO chapters (name, path, depth, position, parent_id) 
+		VALUES (?, ?, ?, ?, ?)`, chapter.Name, chapter.Path, chapter.Depth, chapter.Position, chapter.ParentID)
 	if err != nil {
 		return 0, err
 	}
@@ -70,9 +71,9 @@ func InsertChapterAtPosition(db *sql.DB, chapter ChapterCreate) (int, error) {
 	}
 
 	res, err := tx.Exec(`
-		INSERT INTO chapters (name, path, position, parent_id)
-		VALUES (?, ?, ?, ?)
-	`, chapter.Name, chapter.Path, chapter.Position, chapter.ParentID)
+		INSERT INTO chapters (name, path, depth, position, parent_id)
+		VALUES (?, ?, ?, ?, ?)
+	`, chapter.Name, chapter.Path, chapter.Depth, chapter.Position, chapter.ParentID)
 	if err != nil {
 		return 0, err
 	}

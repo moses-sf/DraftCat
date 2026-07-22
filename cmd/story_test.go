@@ -123,14 +123,17 @@ func TestCreateChapterCreatesFolderSceneTomlAndDatabaseRows(t *testing.T) {
 	tempDir := t.TempDir()
 
 	chapterPath := filepath.Join(tempDir, "Chapter 1")
-
+	folderOpts := AddFolderOptions{
+		Name:        "Chapter 1",
+		Position:    0,
+		ParentID:    sql.NullInt64{Valid: false},
+		MaxPosition: 0,
+	}
 	err := CreateChapter(
 		db,
 		chapterPath,
-		"Chapter 1",
 		"..",
-		sql.NullInt64{Valid: false},
-		0,
+		folderOpts,
 	)
 	if err != nil {
 		t.Fatalf("CreateChapter returned error: %v", err)
@@ -176,12 +179,23 @@ func TestCreateChapterAtPositionShiftsExistingRootChapters(t *testing.T) {
 
 	firstPath := filepath.Join(tempDir, "Chapter 1")
 	secondPath := filepath.Join(tempDir, "Chapter 2")
-
-	if err := CreateChapter(db, firstPath, "Chapter 1", "..", sql.NullInt64{Valid: false}, 0); err != nil {
+	folderOptions := AddFolderOptions{
+		Name:        "Chapter 1",
+		Position:    0,
+		ParentID:    sql.NullInt64{Valid: false},
+		MaxPosition: 0,
+	}
+	if err := CreateChapter(db, firstPath, "..", folderOptions); err != nil {
 		t.Fatalf("CreateChapter first returned error: %v", err)
 	}
+	folderOptions = AddFolderOptions{
+		Name:        "Chapter 2",
+		Position:    1,
+		ParentID:    sql.NullInt64{Valid: false},
+		MaxPosition: 1,
+	}
 
-	if err := CreateChapter(db, secondPath, "Chapter 2", "..", sql.NullInt64{Valid: false}, 1); err != nil {
+	if err := CreateChapter(db, secondPath, "..", folderOptions); err != nil {
 		t.Fatalf("CreateChapter second returned error: %v", err)
 	}
 

@@ -10,21 +10,27 @@ import (
 )
 
 type Chapter struct {
-	ID        int
-	ParentID  sql.NullInt64
-	Name      string
-	Path      string
-	Position  int
-	WordCount int
+	ID            int
+	ParentID      sql.NullInt64
+	Name          string
+	Depth         int
+	Compile       bool
+	Path          string
+	Position      int
+	WordCount     int
+	AncestorIDs   []int
+	DescendantIDs []int
 }
 
 type Scene struct {
-	ID        int
-	ChapterID int
-	Name      string
-	Path      string
-	Position  int
-	WordCount int
+	ID          int
+	ChapterID   int
+	Compile     bool
+	Name        string
+	Path        string
+	Position    int
+	WordCount   int
+	AncestorIDs []int
 }
 
 type SceneNode struct {
@@ -86,20 +92,22 @@ func MapNodes(chapters []Chapter, scenes []Scene) (*ChapterNode, error) {
 		}
 		node, ok := nodeMap[parentID]
 		if !ok {
-			return nil, fmt.Errorf("missing id in map: %d", parentID)
+			return nil, fmt.Errorf("missing id in parent map: %d", parentID)
 		}
 		node.Chapters = append(node.Chapters, chapterNode)
 		chapterNode.Depth = node.Depth + 1
 	}
 
 	for _, s := range scenes {
+		s.AncestorIDs = append(s.AncestorIDs, nodeMap[s.ChapterID].Chapter.AncestorIDs...)
+		s.AncestorIDs = append(s.AncestorIDs, nodeMap[s.ChapterID].Chapter.ID)
 		sceneNode := &SceneNode{
 			Scene: s,
 			Depth: 0,
 		}
 		node, ok := nodeMap[s.ChapterID]
 		if !ok {
-			return nil, fmt.Errorf("missing id in map: %d", s.ChapterID)
+			return nil, fmt.Errorf("missing id in chapter map: %d", s.ChapterID)
 		}
 		sceneNode.Depth = node.Depth + 1
 		node.Scenes = append(node.Scenes, sceneNode)

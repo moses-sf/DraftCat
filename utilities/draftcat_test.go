@@ -19,7 +19,7 @@ func TestFolderTomlExistsReturnsTrueForFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !FolderTomlExists(path) {
+	if !FileExists(path) {
 		t.Fatal("expected FolderTomlExists to return true for existing file")
 	}
 }
@@ -32,7 +32,7 @@ func TestFolderTomlExistsReturnsFalseForDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if FolderTomlExists(path) {
+	if FileExists(path) {
 		t.Fatal("expected FolderTomlExists to return false for directory")
 	}
 }
@@ -202,6 +202,7 @@ func TestGetRelativeRootPathFromChapterFolder(t *testing.T) {
 
 	chapter := ChapterMetaData{
 		ID:         1,
+		Name:       "Chapter 1",
 		ParentID:   sql.NullInt64{Valid: false},
 		PathToRoot: "..",
 		Position:   1,

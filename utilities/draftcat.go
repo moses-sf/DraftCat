@@ -5,6 +5,7 @@ Copyright © 2026 Moses Sukumaran moses@solframe.in
 package utilities
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,18 +24,20 @@ func FindToml(tomlName string) (string, error) {
 func FindTomlPath(path, tomlName string) (string, error) {
 	_, err := os.Stat(filepath.Join(path, tomlName))
 	if err != nil {
-		if os.IsNotExist(err) {
-			fmt.Println("Attempting to find local file")
-		}
 		return "", err
 	} else {
 		return path, nil
 	}
 }
 
-func FolderTomlExists(path string) bool {
+func FileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
+}
+
+func FolderExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 func LoadChapterToml(root string) (*ChapterMetaData, error) {
@@ -57,7 +60,7 @@ func IsDraftcatProject() (bool, error) {
 	}
 	chapterPath := filepath.Join(cwd, ".chapter.toml")
 	storyPath := filepath.Join(cwd, ".story.toml")
-	if FolderTomlExists(chapterPath) || FolderTomlExists(storyPath) {
+	if FileExists(chapterPath) || FileExists(storyPath) {
 		return true, nil
 	}
 	return false, fmt.Errorf("not a draftcat project")
@@ -70,9 +73,9 @@ func GetRelativeRootPath() (string, error) {
 	}
 	chapterPath := filepath.Join(cwd, ".chapter.toml")
 	storyPath := filepath.Join(cwd, ".story.toml")
-	if FolderTomlExists(storyPath) {
+	if FileExists(storyPath) {
 		return cwd, nil
-	} else if FolderTomlExists(chapterPath) {
+	} else if FileExists(chapterPath) {
 		chapter, err := LoadChapterToml(cwd)
 		if err != nil {
 			return "", fmt.Errorf("error loading chapter data %s", err)
@@ -81,4 +84,20 @@ func GetRelativeRootPath() (string, error) {
 	} else {
 		return "", fmt.Errorf("could not get root")
 	}
+}
+
+func EncodeChapterToml(root string, data ChapterMetaData) error {
+	chapterTomlPath := filepath.Join(root, ".chapter.toml")
+	return EncodeToml(chapterTomlPath, data)
+}
+
+func EncodeToml(path string, data any) error {
+	buf := new(bytes.Buffer)
+	encoder := toml.NewEncoder(buf)
+	err := encoder.Encode(data)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(path, buf.Bytes(), 0o644)
+	return err
 }

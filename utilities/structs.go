@@ -14,23 +14,93 @@ import (
 	"slices"
 
 	"github.com/BurntSushi/toml"
+	databasehandler "github.com/moses-sf/DraftCat/databaseHandler"
 	"github.com/spf13/cobra"
 )
 
 type SceneMetaData struct {
 	ID       int
 	Name     string
+	Compile  bool
 	Path     string
 	Position int
 }
 
 type ChapterMetaData struct {
 	ID         int
+	Name       string
+	Compile    bool
+	Depth      int
 	ParentID   sql.NullInt64
 	PathToRoot string
 	Position   int
 	Scenes     []SceneMetaData
 }
+
+func (c *ChapterMetaData) RebuildScenePaths(db *sql.DB, chapterPath string) error {
+	scenes, err := databasehandler.GetScenesOfChapter(db, c.ID)
+	if err != nil {
+		return err
+	}
+	newSceneList := make([]SceneMetaData, 0)
+	for _, scene := range scenes {
+		newPath := filepath.Join(chapterPath, filepath.Base(scene.Path))
+		scene.Path = newPath
+		err = databasehandler.UpdateScenePath(db, scene)
+		if err != nil {
+			return err
+		}
+		newSceneList = append(newSceneList, SceneMetaData{
+			ID:       scene.ID,
+			Name:     scene.Name,
+			Compile:  scene.Compile,
+			Path:     scene.Path,
+			Position: scene.Position,
+		})
+	}
+	c.Scenes = newSceneList
+	return nil
+}
+
+func (c *ChapterMetaData) RebuildSceneMetadata(db *sql.DB) error {
+	scenes, err := databasehandler.GetScenesOfChapter(db, c.ID)
+	if err != nil {
+		return err
+	}
+	newSceneList := make([]SceneMetaData, 0)
+	for _, scene := range scenes {
+		newSceneList = append(newSceneList, SceneMetaData{
+			ID:       scene.ID,
+			Name:     scene.Name,
+			Compile:  scene.Compile,
+			Path:     scene.Path,
+			Position: scene.Position,
+		})
+	}
+	c.Scenes = newSceneList
+	return nil
+}
+
+func (c *ChapterMetaData) RebuildParentChapterPositionMetadata(db *sql.DB) error {
+	chapters, err := databasehandler.GetChaptersWithParent(db, c.ParentID)
+	if err != nil {
+		return err
+	}
+	for _, chapter := range chapters {
+		chapterToml, err := LoadChapterToml(chapter.Path)
+		if err != nil {
+			return err
+		}
+		chapterTomlPath := filepath.Join(chapter.Path, ".chapter.toml")
+		chapterToml.Position = chapter.Position
+		err = EncodeToml(chapterTomlPath, chapterToml)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type StoryType string
 
 const (

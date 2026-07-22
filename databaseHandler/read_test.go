@@ -262,3 +262,63 @@ func TestMapNodesBuildsChapterSceneTree(t *testing.T) {
 		t.Fatalf("expected scene depth 2, got %d", chapterNode.Scenes[0].Depth)
 	}
 }
+
+func TestChapterSelectWithParent(t *testing.T) {
+	db := basicDBSetup(t)
+	chapters, err := GetChaptersWithParent(db, sql.NullInt64{Valid: false})
+	if err != nil {
+		t.Error(err)
+	}
+	if len(chapters) != 3 {
+		t.Fatalf("Incorrect number of chapters root: %d", len(chapters))
+	}
+	chapters, err = GetChaptersWithParent(db, sql.NullInt64{Valid: true, Int64: 1})
+	if err != nil {
+		t.Error(err)
+	}
+	if len(chapters) != 3 {
+		t.Fatalf("Incorrect number of chapters 1:  %d", len(chapters))
+	}
+	chapters, err = GetChaptersWithParent(db, sql.NullInt64{Valid: true, Int64: 2})
+	if err != nil {
+		t.Error(err)
+	}
+	if len(chapters) != 2 {
+		t.Fatalf("Incorrect number of chapters 2: %d", len(chapters))
+	}
+}
+
+func TestDescendantRead(t *testing.T) {
+	db := basicDBSetup(t)
+	descendants, err := GetChapterDescendants(db, 1)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(descendants) != 4 {
+		t.Fatalf("Incorrect number of descendants: %v", descendants)
+	}
+}
+
+func TestGetChapter(t *testing.T) {
+	db := basicDBSetup(t)
+	chapter, err := GetChapter(db, 1)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(chapter.DescendantIDs) != 4 {
+		t.Fatalf("Incorrect number of descendants: %d", len(chapter.DescendantIDs))
+	}
+	if len(chapter.AncestorIDs) != 0 {
+		t.Fatalf("Incorrect number of ancestors: %d", len(chapter.AncestorIDs))
+	}
+	chapter, err = GetChapter(db, 4)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(chapter.DescendantIDs) != 1 {
+		t.Fatalf("Incorrect number of descendants: %d", len(chapter.DescendantIDs))
+	}
+	if len(chapter.AncestorIDs) != 1 {
+		t.Fatalf("Incorrect number of ancestors: %d", len(chapter.AncestorIDs))
+	}
+}

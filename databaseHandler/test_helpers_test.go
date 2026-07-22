@@ -29,6 +29,8 @@ func setupTestDB(t *testing.T) *sql.DB {
 		CREATE TABLE chapters (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			parent_id INTEGER,
+			depth INTEGER,
+  		compile INTEGER NOT NULL DEFAULT 1,
 			name TEXT NOT NULL,
 			path TEXT NOT NULL,
 			position INTEGER NOT NULL,
@@ -39,6 +41,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 		CREATE TABLE scenes (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			chapter_id INTEGER NOT NULL,
+  		compile INTEGER NOT NULL DEFAULT 1,
 			name TEXT NOT NULL,
 			path TEXT NOT NULL,
 			position INTEGER NOT NULL,
@@ -88,4 +91,139 @@ func assertScenePosition(t *testing.T, db *sql.DB, name string, chapterID int, e
 	if position != expectedPosition {
 		t.Fatalf("expected scene %q position %d, got %d", name, expectedPosition, position)
 	}
+}
+
+func basicDBSetup(t *testing.T) *sql.DB {
+	t.Helper()
+
+	db := setupTestDB(t)
+
+	parentOneID, err := AddChapter(db, ChapterCreate{
+		Name:     "Chapter 1",
+		Path:     "Chapter 1",
+		Depth:    1,
+		Position: 1,
+		ParentID: sql.NullInt64{Valid: false},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parentTwoID, err := AddChapter(db, ChapterCreate{
+		Name:     "Chapter 2",
+		Path:     "Chapter 2",
+		Depth:    1,
+		Position: 2,
+		ParentID: sql.NullInt64{Valid: false},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = AddChapter(db, ChapterCreate{
+		Name:     "Chapter 3",
+		Path:     "Chapter 3",
+		Depth:    1,
+		Position: 3,
+		ParentID: sql.NullInt64{Valid: false},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parentOne := sql.NullInt64{Int64: int64(parentOneID), Valid: true}
+	parentTwo := sql.NullInt64{Int64: int64(parentTwoID), Valid: true}
+
+	chapterOneNotesID, err := AddChapter(db, ChapterCreate{
+		Name:     "Notes",
+		Path:     "Chapter 1/Notes",
+		Depth:    2,
+		Position: 1,
+		ParentID: parentOne,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = AddChapter(db, ChapterCreate{
+		Name:     "Other",
+		Path:     "Chapter 2/Other",
+		Depth:    2,
+		Position: 1,
+		ParentID: parentTwo,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = AddChapter(db, ChapterCreate{
+		Name:     "Other2",
+		Path:     "Chapter 2/Other2",
+		Depth:    2,
+		Position: 2,
+		ParentID: parentTwo,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = InsertChapterAtPosition(db, ChapterCreate{
+		Name:     "Inserted Notes",
+		Path:     "Chapter 1/Inserted Notes",
+		Depth:    2,
+		Position: 1,
+		ParentID: parentOne,
+	})
+	if err != nil {
+		t.Fatalf("InsertChapterAtPosition returned error: %v", err)
+	}
+	_, err = AddChapter(db, ChapterCreate{
+		Name:     "Final Notes",
+		Path:     "Chapter 1/Final Notes",
+		Depth:    2,
+		Position: 3,
+		ParentID: parentOne,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = AddScene(db, SceneCreate{
+		ChapterID: parentOneID,
+		Name:      "scene",
+		Path:      "Chapter 1/scene.md",
+		Position:  1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = InsertSceneAtPosition(db, SceneCreate{
+		ChapterID: parentOneID,
+		Name:      "Scene 2",
+		Path:      "Chapter 1/Scene 2.md",
+		Position:  2,
+	})
+	if err != nil {
+		t.Fatalf("InsertSceneAtPosition returned error: %v", err)
+	}
+	_, err = InsertSceneAtPosition(db, SceneCreate{
+		ChapterID: parentOneID,
+		Name:      "Scene 3",
+		Path:      "Chapter 1/Scene 3.md",
+		Position:  3,
+	})
+	if err != nil {
+		t.Fatalf("InsertSceneAtPosition returned error: %v", err)
+	}
+	chapterOneNotes := sql.NullInt64{Valid: true, Int64: int64(chapterOneNotesID)}
+	_, err = AddChapter(db, ChapterCreate{
+		Name:     "Notes Embed",
+		Path:     "Chapter 1/Notes/Notes Embed",
+		Depth:    3,
+		Position: 1,
+		ParentID: chapterOneNotes,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return db
 }

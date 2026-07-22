@@ -209,6 +209,34 @@ func GenerateStoryScaffold(opts InitOptions, storyType utilities.StoryType) (str
 	return path, nil
 }
 
+func InitialiseGitRepo(path, projectName string) error {
+	gitignorePath := filepath.Join(path, ".gitignore")
+	err := os.WriteFile(gitignorePath, nil, 0o644)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("git", "init")
+	cmd.Dir = path
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git init: %w\n%s", err, output)
+	}
+	cmd = exec.Command("git", "add", "-A")
+	cmd.Dir = path
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git init: %w\n%s", err, output)
+	}
+	message := "Initial commit for " + projectName
+	cmd = exec.Command("git", "commit", "-m", message)
+	cmd.Dir = path
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git init: %w\n%s", err, output)
+	}
+	return nil
+}
+
 func InitialiseDB(path string) error {
 	db, err := sql.Open("sqlite", filepath.Join(path, ".story.db"))
 	if err != nil {
@@ -303,6 +331,28 @@ func RunVim(initOptions InitOptions, path string) error {
 	return nil
 }
 
+func GenerateInitOptions(cmd *cobra.Command, args []string) (InitOptions, error) {
+	workType := args[0]
+	name, err := cmd.Flags().GetString("name")
+	if err != nil {
+		return InitOptions{}, err
+	}
+	defaults, err := cmd.Flags().GetBool("defaults")
+	if err != nil {
+		return InitOptions{}, err
+	}
+	vim, err := cmd.Flags().GetBool("vim")
+	if err != nil {
+		return InitOptions{}, err
+	}
+	return InitOptions{
+		Name:     name,
+		WorkType: workType,
+		Defaults: defaults,
+		Vim:      vim,
+	}, nil
+}
+
 // initCmd represents the init command
 var initCmd = &cobra.Command{
 	Use:   "init",
@@ -311,29 +361,17 @@ var initCmd = &cobra.Command{
 	Use the following template types: short, novella, novel`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		workType := args[0]
-		name, err := cmd.Flags().GetString("name")
-		if err != nil {
-			fmt.Println("Error in retrieving name")
-			return
-		}
-		defaults, err := cmd.Flags().GetBool("defaults")
+		initOptions, err := GenerateInitOptions(cmd, args)
 		if err != nil {
 			fmt.Println(err)
 			return
-		}
-		vim, err := cmd.Flags().GetBool("vim")
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		initOptions := InitOptions{
-			Name:     name,
-			WorkType: workType,
-			Defaults: defaults,
-			Vim:      vim,
 		}
 		path, err := InitWork(initOptions)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		err = InitialiseGitRepo(path, initOptions.Name)
 		if err != nil {
 			fmt.Println(err)
 			return
