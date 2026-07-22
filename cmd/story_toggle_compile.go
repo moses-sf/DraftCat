@@ -143,35 +143,35 @@ var toggleCompileCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		_, err := utilities.IsDraftcatProject()
 		if err != nil {
-			log.Fatalf("%s", err)
+			fmt.Printf("%s", err)
 		}
 		j, err := cmd.Flags().GetBool("json")
 		if err != nil {
-			log.Fatalf(`{"status":false, "error":"%s"}`, err)
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
 		}
 		toggleOpts, err := GenerateItemKindOptions(cmd)
 		if err != nil {
 			if j {
-				log.Fatalf(`{"status":false, "error":"%s"}`, err)
+				fmt.Printf(`{"status":false, "error":"%s"}`, err)
 			} else {
-				log.Fatal(err)
+				fmt.Println(err)
 			}
 			return
 		}
 		err = ToggleCompile(toggleOpts)
 		if err != nil {
 			if j {
-				log.Fatalf(`{"status":false, "error":"%s"}`, err)
+				fmt.Printf(`{"status":false, "error":"%s"}`, err)
 			} else {
-				log.Fatal(err)
+				fmt.Println(err)
 			}
 			return
 		}
 		if err != nil {
 			if j {
-				log.Fatalf(`{"status":false, "error":"%s"}`, err)
+				fmt.Printf(`{"status":false, "error":"%s"}`, err)
 			} else {
-				log.Fatal(err)
+				fmt.Println(err)
 			}
 			return
 		}

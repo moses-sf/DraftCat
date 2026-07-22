@@ -6,7 +6,6 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/moses-sf/DraftCat/utilities"
 	"github.com/spf13/cobra"
@@ -19,22 +18,22 @@ var snapshotCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		_, err := utilities.IsDraftcatProject()
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
 		}
 
 		if !cmd.Flags().Changed("name") {
-			log.Fatal("Name required")
+			fmt.Println("Name required")
 		}
 		j, err := cmd.Flags().GetBool("json")
 		if err != nil {
-			log.Fatalf(`{"status":false, "error":"%s"}`, err)
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
 		}
 		name, err := cmd.Flags().GetString("name")
 		if err != nil {
 			if j {
-				log.Fatalf(`{"status":false, "error":"%s"}`, err)
+				fmt.Printf(`{"status":false, "error":"%s"}`, err)
 			} else {
-				log.Fatal(err)
+				fmt.Println(err)
 			}
 			return
 		}
@@ -42,9 +41,9 @@ var snapshotCmd = &cobra.Command{
 		err = utilities.CommitWithMessage(message)
 		if err != nil {
 			if j {
-				log.Fatalf(`{"status":false, "error":"%s"}`, err)
+				fmt.Printf(`{"status":false, "error":"%s"}`, err)
 			} else {
-				log.Fatal(err)
+				fmt.Println(err)
 			}
 			return
 		}
@@ -59,15 +58,15 @@ var lastSnapshotCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		_, err := utilities.IsDraftcatProject()
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
 		}
 		path, err := utilities.GetRelativeRootPath()
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
 		}
 		lashHash, err := utilities.RetrieveLastHash(path)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
 		}
 		fmt.Println(lashHash)
 	},

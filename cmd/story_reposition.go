@@ -97,20 +97,27 @@ var repositionFolderCmd = &cobra.Command{
 				Error:  fmt.Sprintf("%s", err),
 			})
 			if err != nil {
-				log.Fatalf(`{"status":false, "error":"%s"}`, err)
+				fmt.Printf(`{"status":false, "error":"%s"}`, err)
 				return
 			}
-			log.Fatal(string(state))
+			fmt.Println(string(state))
 			return
 		}
 		folderOpts, err := GetFolderRepositionOptions(cmd)
 		if err != nil {
-			log.Fatalf(`{"status":false, "error":"%s"}`, err)
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
+			return
+		}
+		message := fmt.Sprintf("drafcat|backup|repositionFolder|%d|%d", folderOpts.ChapterID, folderOpts.NewPosition)
+		err = utilities.CommitBackupSnapshot(message)
+		if err != nil {
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
 			return
 		}
 		err = RepositionFolder(folderOpts)
 		if err != nil {
-			log.Fatalf(`{"status":false, "error":"%s"}`, err)
+			errRestore := utilities.RestoreChanges()
+			fmt.Printf(`{"status":false, "error":"%s-%s"}`, err, errRestore)
 			return
 		}
 		if j {
@@ -118,7 +125,7 @@ var repositionFolderCmd = &cobra.Command{
 				Status: true,
 			})
 			if err != nil {
-				log.Fatalf(`{"status":false, "error":"%s"}`, err)
+				fmt.Printf(`{"status":false, "error":"%s"}`, err)
 				return
 			}
 			fmt.Println(string(state))
@@ -207,22 +214,28 @@ var repositionSceneCmd = &cobra.Command{
 				Error:  fmt.Sprintf("%s", err),
 			})
 			if err != nil {
-				log.Fatalf(`{"status":false, "error":"%s"}`, err)
+				fmt.Printf(`{"status":false, "error":"%s"}`, err)
 				return
 			}
-			log.Fatal(string(state))
+			fmt.Println(string(state))
 			return
 		}
 
 		sceneOpts, err := GetRepositionSceneOptions(cmd)
 		if err != nil {
-			log.Fatalf(`{"status":false, "error":"%s"}`, err)
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
 			return
 		}
-
+		message := fmt.Sprintf("draftcat|backup|repositionScene|%d|%d", sceneOpts.SceneID, sceneOpts.NewPosition)
+		err = utilities.CommitBackupSnapshot(message)
+		if err != nil {
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
+			return
+		}
 		err = RepositionScene(sceneOpts)
 		if err != nil {
-			log.Fatalf(`{"status":false, "error":"%s"}`, err)
+			errRestore := utilities.RestoreChanges()
+			fmt.Printf(`{"status":false, "error":"%s-%s"}`, err, errRestore)
 			return
 		}
 
@@ -231,7 +244,7 @@ var repositionSceneCmd = &cobra.Command{
 				Status: true,
 			})
 			if err != nil {
-				log.Fatalf(`{"status":false, "error":"%s"}`, err)
+				fmt.Printf(`{"status":false, "error":"%s"}`, err)
 				return
 			}
 			fmt.Println(string(state))

@@ -215,12 +215,12 @@ var renameFolderCmd = &cobra.Command{
 			if jsonValue {
 				j, err := json.Marshal(response)
 				if err != nil {
-					log.Fatalf(`{"status":false, "error":"%s"}`, err)
+					fmt.Printf(`{"status":false, "error":"%s"}`, err)
 				}
-				log.Fatal(string(j))
+				fmt.Println(string(j))
 				return
 			} else {
-				log.Fatal(err)
+				fmt.Println(err)
 			}
 			return
 		}
@@ -228,7 +228,7 @@ var renameFolderCmd = &cobra.Command{
 		response.Path = path
 		j, err := json.Marshal(response)
 		if err != nil {
-			log.Fatalf(`{"status":false, "error":"%s"}`, err)
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
 		}
 		fmt.Println(string(j))
 	},
@@ -328,16 +328,16 @@ var renameSceneCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		j, err := cmd.Flags().GetBool("json")
 		if err != nil {
-			log.Fatalf(`{"status":false, "error":"%s"}`, err)
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
 		}
 		sceneOpts, err := GenerateSceneRenameOptions(cmd)
 		if err != nil {
-			log.Fatalf(`{"status":false, "error":"%s"}`, err)
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
 		}
 		message := fmt.Sprintf("draftcat|backup|renameScene|%d", sceneOpts.SceneID)
 		err = utilities.CommitBackupSnapshot(message)
 		if err != nil {
-			log.Fatalf(`{"status":false, "error":"%s"}`, err)
+			fmt.Printf(`{"status":false, "error":"%s"}`, err)
 		}
 		path, err := RenameScene(sceneOpts)
 		if err != nil {
@@ -346,12 +346,12 @@ var renameSceneCmd = &cobra.Command{
 				err = fmt.Errorf("%w-%w", err, errRestore)
 			}
 			if err != nil {
-				log.Fatalf(`{"status":false, "error":"FATAL %s"}`, err)
+				fmt.Printf(`{"status":false, "error":"FATAL %s"}`, err)
 			}
 			if j {
-				log.Fatalf(`{"status":false, "error":"%s"}`, err)
+				fmt.Printf(`{"status":false, "error":"%s"}`, err)
 			} else {
-				log.Fatal(err)
+				fmt.Println(err)
 			}
 			return
 		}

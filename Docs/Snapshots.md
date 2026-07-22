@@ -2,4 +2,8 @@ Add Scene: draftcat|backup|addScene|<SceneName>|<ChapterID>
 Add Folder: draftcat|backup|addFolder|<FolderName>|<ParentID>
 Delete Item: draftcat|backup|delete|<ItemKind>|<ItemID>
 Move Scene: draftcat|backup|moveScene|<SceneID>|<OldChapterID>|<NewChapterID>
+Move Folder: draftcat|backup|moveFolderID|<FolderID>|<ParentID>|<NewParentID>
+Rename Scene: draftcat|backup|renameScene|<SceneIR>
 Rename Folder: draftcat|backup|renameFolder|<FolderID>
+Reposition Scene: draftcat|backup|repositionScene|<SceneID>|<Position>
+Reposition Folder: draftcat|backup|repositionFolder|<FolderID>|<Position>
